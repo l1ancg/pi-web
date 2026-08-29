@@ -24,11 +24,18 @@
 .DS_Store
 *.pem
 
+# pi-web user-curated project list (created by lib/project-config.ts at runtime)
+/conf.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# pnpm — this project uses npm; ignore stray pnpm files at the repo root
+/pnpm-lock.yaml
+/pnpm-workspace.yaml
 
 # env files (can opt-in for committing if needed)
 .env*

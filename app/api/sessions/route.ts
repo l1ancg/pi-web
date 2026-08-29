@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { homedir } from "os";
 import {
   attachSessionProjectInfo,
   listAllSessions,
@@ -9,6 +10,7 @@ import {
   getRpcSessionInfos,
   getRunningRpcSessionIds,
 } from "@/lib/rpc-manager";
+import { isSessionInConfiguredProjects } from "@/lib/project-config";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,14 @@ export async function GET(req: Request) {
       listAllSessions({ force }),
       attachSessionProjectInfo(getRpcSessionInfos()),
     ]);
-    const sessions = mergeSessionLists(persistedSessions, runtimeSessions);
+    const merged = mergeSessionLists(persistedSessions, runtimeSessions);
+    // Only show sessions whose cwd / projectRoot is a configured project,
+    // plus any pi-cwd-* scratch roots. This makes the project list reflect
+    // exactly the directories the user registered in conf.json.
+    const home = homedir();
+    const sessions = merged.filter((session) =>
+      isSessionInConfiguredProjects(session.cwd, session.projectRoot, home),
+    );
     return NextResponse.json(
       {
         sessions,

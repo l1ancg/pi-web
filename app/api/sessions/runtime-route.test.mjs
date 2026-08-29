@@ -29,6 +29,11 @@ test("session listing merges live registry snapshots and honors force refresh", 
   assert.match(listRoute, /"Cache-Control": "no-store"/);
 });
 
+test("session listing filters out sessions not in the configured projects", () => {
+  assert.match(listRoute, /isSessionInConfiguredProjects/);
+  assert.match(listRoute, /homedir\(\)/);
+});
+
 test("session reads use the live SessionManager before requiring a JSONL path", () => {
   for (const source of [detailRoute, contextRoute]) {
     const liveLookup = source.indexOf("getRpcSession(id)");

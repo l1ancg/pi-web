@@ -115,10 +115,15 @@ function displayCwd(cwd: string, homeDir?: string): string {
   return homeDir && cwd.startsWith(homeDir) ? "~" + cwd.slice(homeDir.length) : cwd;
 }
 
-function isDefaultCwd(cwd: string | null | undefined, homeDir: string): boolean {
-  if (!cwd || !homeDir) return false;
-  if (cwd === homeDir) return false;
-  return cwd.startsWith(`${homeDir}/pi-cwd-`);
+function isDefaultCwd(
+  cwd: string | null | undefined,
+  homeDir: string,
+  defaultCwd: string,
+): boolean {
+  if (!cwd) return false;
+  if (homeDir && cwd !== homeDir && cwd.startsWith(`${homeDir}/pi-cwd-`)) return true;
+  if (defaultCwd && (cwd === defaultCwd || cwd.startsWith(`${defaultCwd}/`))) return true;
+  return false;
 }
 
 function getFileName(path: string): string {
@@ -1057,6 +1062,7 @@ export function SessionSidebar({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [homeDir, setHomeDir] = useState("");
+  const [defaultCwd, setDefaultCwd] = useState("");
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(() => loadUnreadSessionIds());
@@ -1289,6 +1295,12 @@ export function SessionSidebar({
         if (d.home) setHomeDir(d.home);
       })
       .catch(() => {});
+    fetch("/api/projects/default-cwd", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { defaultCwd?: string | null }) => {
+        if (typeof d.defaultCwd === "string") setDefaultCwd(d.defaultCwd);
+      })
+      .catch(() => {});
   }, []);
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -1329,7 +1341,7 @@ export function SessionSidebar({
         onSelectSession(target, true);
         // Auto-expand the project containing this session
         const key = workspaceKeyOf(target);
-        if (!isDefaultCwd(target.cwd, homeDir)) {
+        if (!isDefaultCwd(target.cwd, homeDir, defaultCwd)) {
           setExpandedProjects((prev) => {
             if (prev.has(key)) return prev;
             const next = new Set(prev);
@@ -1348,6 +1360,7 @@ export function SessionSidebar({
     onSelectSession,
     onInitialRestoreDone,
     homeDir,
+    defaultCwd,
   ]);
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -1360,7 +1373,7 @@ export function SessionSidebar({
     lastAutoExpandedRef.current = selectedSessionId;
     const target = allSessions.find((s) => s.id === selectedSessionId);
     if (!target) return;
-    if (isDefaultCwd(target.cwd, homeDir)) return;
+    if (isDefaultCwd(target.cwd, homeDir, defaultCwd)) return;
     const key = workspaceKeyOf(target);
     setExpandedProjects((prev) => {
       if (prev.has(key)) return prev;
@@ -1368,23 +1381,23 @@ export function SessionSidebar({
       next.add(key);
       return next;
     });
-  }, [selectedSessionId, allSessions, homeDir]);
+  }, [selectedSessionId, allSessions, homeDir, defaultCwd]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Derived data: projects and recent sessions
   // ──────────────────────────────────────────────────────────────────────────
   const projects = useMemo(() => {
-    return getRecentProjects(allSessions).filter((p) => !isDefaultCwd(p.root, homeDir));
-  }, [allSessions, homeDir]);
+    return getRecentProjects(allSessions).filter((p) => !isDefaultCwd(p.root, homeDir, defaultCwd));
+  }, [allSessions, homeDir, defaultCwd]);
 
   const recentSessions = useMemo(() => {
-    return allSessions.filter((s) => isDefaultCwd(s.cwd, homeDir));
-  }, [allSessions, homeDir]);
+    return allSessions.filter((s) => isDefaultCwd(s.cwd, homeDir, defaultCwd));
+  }, [allSessions, homeDir, defaultCwd]);
 
   const projectActivity = useMemo(() => {
     const counts = new Map<string, { running: number; unread: number }>();
     for (const session of allSessions) {
-      if (isDefaultCwd(session.cwd, homeDir)) continue;
+      if (isDefaultCwd(session.cwd, homeDir, defaultCwd)) continue;
       const key = workspaceKeyOf(session);
       let entry = counts.get(key);
       if (!entry) {
@@ -1395,7 +1408,7 @@ export function SessionSidebar({
       if (unreadSessionIds.has(session.id)) entry.unread++;
     }
     return counts;
-  }, [allSessions, runningSessionIds, unreadSessionIds, homeDir]);
+  }, [allSessions, runningSessionIds, unreadSessionIds, homeDir, defaultCwd]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Handlers
@@ -1455,8 +1468,11 @@ export function SessionSidebar({
         const validated = data.cwd;
         // If this folder already has sessions (matches an existing project or
         // matches the recent cwd), skip — user is told via a brief error.
+        // allSessions is already filtered to configured projects + pi-cwd-*,
+        // so a visible session implies the folder is registered one way or
+        // the other.
         const existsAsProject = allSessions.some((s) => {
-          if (isDefaultCwd(s.cwd, homeDir)) return false;
+          if (isDefaultCwd(s.cwd, homeDir, defaultCwd)) return false;
           return (s.projectRoot ?? s.cwd) === (data.projectRoot ?? validated);
         });
         const existsAsRecent = allSessions.some((s) => s.cwd === validated);
@@ -1470,6 +1486,20 @@ export function SessionSidebar({
           return;
         }
 
+        // Register the directory in conf.json so future /api/sessions scans
+        // include sessions under it. The POST is idempotent — re-selecting a
+        // folder that's somehow already registered is a no-op.
+        const registerRes = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cwd: validated }),
+        });
+        if (!registerRes.ok) {
+          const registerData = (await registerRes.json().catch(() => ({}))) as { error?: string };
+          setPickerError(registerData.error ?? `HTTP ${registerRes.status}`);
+          return;
+        }
+
         setPickerOpen(false);
         setSelectedCwd(validated);
         handleNewSessionInCwd(validated);
@@ -1479,7 +1509,7 @@ export function SessionSidebar({
         setPickerBusy(false);
       }
     },
-    [allSessions, homeDir, pickerBusy, t, handleNewSessionInCwd],
+    [allSessions, homeDir, defaultCwd, pickerBusy, t, handleNewSessionInCwd],
   );
 
   const handleNewInRecent = useCallback(async () => {
@@ -1526,6 +1556,19 @@ export function SessionSidebar({
             method: "DELETE",
           });
           onSessionDeleted?.(session.id);
+        }
+        // Unregister the project so future scans no longer surface any
+        // sessions that might be left under it. 404 is fine — the project
+        // may have already been removed via conf.json edits.
+        const projectCwd = sessions[0]?.projectRoot ?? sessions[0]?.cwd;
+        if (projectCwd) {
+          try {
+            await fetch(`/api/projects/${encodeURIComponent(projectCwd)}`, {
+              method: "DELETE",
+            });
+          } catch {
+            /* best-effort */
+          }
         }
         // Drop the project from expanded set
         setExpandedProjects((prev) => {

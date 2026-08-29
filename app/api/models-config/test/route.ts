@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { completeSimple, type AssistantMessage } from "@earendil-works/pi-ai/compat";
+import { completeSimple, type AssistantMessage, type TextContent } from "@earendil-works/pi-ai/compat";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { hasJsonContentType, isApiRequestAllowed } from "@/lib/request-security";
 
@@ -20,7 +20,7 @@ function errorMessage(error: unknown): string {
 
 function getAssistantText(message: AssistantMessage): string {
   return message.content
-    .filter((block) => block.type === "text")
+    .filter((block): block is TextContent => block.type === "text")
     .map((block) => block.text)
     .join("");
 }

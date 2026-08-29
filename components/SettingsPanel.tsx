@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { useTheme, type ThemePreference } from "@/hooks/useTheme";
 import { sendAgentCommand } from "@/lib/agent-client";
@@ -12,6 +12,7 @@ import {
 import { ModelsConfig } from "./ModelsConfig";
 import { SkillsConfig } from "./SkillsConfig";
 import { PluginsConfig } from "./PluginsConfig";
+import { DirectoryPicker } from "./DirectoryPicker";
 import { ConfigSwitch } from "./SettingsUi";
 
 interface Props {
@@ -20,6 +21,9 @@ interface Props {
   initialSection: SettingsSection;
   onClose: () => void;
   onSessionReloaded: () => void;
+  /** Called after the user changes the default session path so the sidebar
+   *  can re-classify Recent vs Projects. */
+  onProjectConfigChanged?: () => void;
 }
 
 export function SettingsSectionIcon({ section, size = 16, strokeWidth = 1.8 }: { section: SettingsSection; size?: number; strokeWidth?: number }) {
@@ -53,7 +57,11 @@ function ThemeIcon({ preference }: { preference: ThemePreference }) {
   return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>;
 }
 
-function GeneralSettings({ sessionId, onSessionReloaded }: Pick<Props, "sessionId" | "onSessionReloaded">) {
+function GeneralSettings({
+  sessionId,
+  onSessionReloaded,
+  onProjectConfigChanged,
+}: Pick<Props, "sessionId" | "onSessionReloaded" | "onProjectConfigChanged">) {
   const { locale, setLocale, supportedLocales, t } = useI18n();
   const { preference, setThemePreference } = useTheme();
   const [shellSettings, setShellSettings] = useState<ShellToolSettingsResponse | null>(null);
@@ -171,11 +179,155 @@ function GeneralSettings({ sessionId, onSessionReloaded }: Pick<Props, "sessionI
           })}
         </div>
       </section>
+
+      <DefaultSessionPathSection onChanged={onProjectConfigChanged} />
     </div>
   );
 }
 
-export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessionReloaded }: Props) {
+function DefaultSessionPathSection({ onChanged }: { onChanged?: () => void }) {
+  const { t } = useI18n();
+  const [defaultCwd, setDefaultCwd] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerBusy, setPickerBusy] = useState(false);
+  const [pickerError, setPickerError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const response = await fetch("/api/projects/default-cwd", { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = (await response.json()) as { defaultCwd?: string | null; error?: string };
+      if (data.error) throw new Error(data.error);
+      setDefaultCwd(typeof data.defaultCwd === "string" ? data.defaultCwd : null);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const submit = useCallback(async (cwd: string | null) => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const response = await fetch("/api/projects/default-cwd", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cwd }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        defaultCwd?: string | null;
+        error?: string;
+      };
+      if (!response.ok || data.error) {
+        throw new Error(data.error ?? `HTTP ${response.status}`);
+      }
+      setDefaultCwd(typeof data.defaultCwd === "string" ? data.defaultCwd : null);
+      onChanged?.();
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  }, [onChanged]);
+
+  const handlePickerSelect = useCallback(
+    async (path: string) => {
+      const trimmed = path.trim();
+      if (!trimmed || pickerBusy) return;
+      setPickerBusy(true);
+      setPickerError(null);
+      try {
+        const res = await fetch("/api/cwd/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cwd: trimmed }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { cwd?: string; error?: string };
+        if (!res.ok || !data.cwd) throw new Error(data.error ?? `HTTP ${res.status}`);
+        setPickerOpen(false);
+        await submit(data.cwd);
+      } catch (cause) {
+        setPickerError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setPickerBusy(false);
+      }
+    },
+    [pickerBusy, submit],
+  );
+
+  const handleClear = useCallback(() => {
+    if (saving) return;
+    void submit(null);
+  }, [saving, submit]);
+
+  const displayPath = defaultCwd ?? "";
+
+  return (
+    <>
+      {pickerOpen && (
+        <DirectoryPicker
+          initialPath=""
+          busy={pickerBusy}
+          error={pickerError}
+          onCancel={() => {
+            setPickerOpen(false);
+            setPickerError(null);
+          }}
+          onSelect={handlePickerSelect}
+        />
+      )}
+      <section className="settings-general-section">
+        <h3 className="settings-general-heading">{t("settings.defaultSessionPath")}</h3>
+        <p className="settings-general-description">{t("settings.defaultSessionPathDescription")}</p>
+        {!loaded ? (
+          <p className="settings-general-description">{t("settings.defaultSessionPathSaving")}</p>
+        ) : (
+          <div className="settings-default-cwd">
+            <code className="settings-default-cwd-path" title={displayPath || undefined}>
+              {displayPath || t("settings.defaultSessionPathEmpty")}
+            </code>
+            <div className="settings-default-cwd-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerError(null);
+                  setPickerOpen(true);
+                }}
+                disabled={saving}
+                className="settings-default-cwd-button"
+              >
+                {defaultCwd ? t("settings.defaultSessionPathChange") : t("settings.defaultSessionPathPick")}
+              </button>
+              {defaultCwd && (
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  disabled={saving}
+                  className="settings-default-cwd-button is-secondary"
+                >
+                  {t("settings.defaultSessionPathClear")}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {saveError && (
+          <p role="alert" className="settings-general-error">{t("settings.defaultSessionPathError")}</p>
+        )}
+      </section>
+    </>
+  );
+}
+
+export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessionReloaded, onProjectConfigChanged }: Props) {
   const { t } = useI18n();
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [mountedSections, setMountedSections] = useState<ReadonlySet<SettingsSection>>(
@@ -270,7 +422,13 @@ export function SettingsPanel({ cwd, sessionId, initialSection, onClose, onSessi
         </div>
 
         <main className="settings-dialog-main">
-          {sectionHost("general", <GeneralSettings sessionId={sessionId} onSessionReloaded={onSessionReloaded} />)}
+          {sectionHost("general", (
+          <GeneralSettings
+            sessionId={sessionId}
+            onSessionReloaded={onSessionReloaded}
+            onProjectConfigChanged={onProjectConfigChanged}
+          />
+        ))}
           {sectionHost("models", <ModelsConfig embedded onClose={onClose} />)}
           {cwd && sectionHost("skills", <SkillsConfig embedded key={cwd} cwd={cwd} onClose={onClose} />)}
           {cwd && sectionHost("plugins", <PluginsConfig embedded key={cwd} cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onSessionReloaded} />)}

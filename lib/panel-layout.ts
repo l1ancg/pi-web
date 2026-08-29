@@ -9,6 +9,13 @@ export const RIGHT_PANEL_FALLBACK_WIDTH = 560;
 export const RIGHT_PANEL_MIN_WIDTH = 300;
 export const RIGHT_PANEL_MAX_WIDTH = 1200;
 
+// Inner file-tree column inside the right panel. Width is constrained by the
+// outer right-panel width so tree + viewer always fit the panel.
+export const RIGHT_PANEL_TREE_FALLBACK_WIDTH = 260;
+export const RIGHT_PANEL_TREE_MIN_WIDTH = 200;
+export const RIGHT_PANEL_TREE_MAX_WIDTH = 600;
+export const RIGHT_PANEL_TREE_MIN_VIEWER_WIDTH = 240;
+
 const COMPACT_CHAT_MIN_WIDTH = 320;
 const DESKTOP_CHAT_MIN_WIDTH = 420;
 
@@ -49,4 +56,31 @@ export function getRightPanelMaxWidth(options: {
     RIGHT_PANEL_MAX_WIDTH,
     viewportWidth - DESKTOP_CHAT_MIN_WIDTH - visibleSidebarWidth,
   );
+}
+
+export function getRightPanelTreeMaxWidth(options: {
+  viewportWidth: number;
+  rightPanelWidth: number;
+}): number {
+  const { viewportWidth, rightPanelWidth } = options;
+  if (viewportWidth < SPLIT_PANEL_MIN_WIDTH) return RIGHT_PANEL_TREE_MAX_WIDTH;
+  const maxByViewer = Math.max(
+    RIGHT_PANEL_TREE_MIN_WIDTH,
+    rightPanelWidth - RIGHT_PANEL_TREE_MIN_VIEWER_WIDTH,
+  );
+  return Math.min(RIGHT_PANEL_TREE_MAX_WIDTH, maxByViewer);
+}
+
+export function getDefaultRightPanelTreeWidth(options: {
+  viewportWidth: number;
+  rightPanelWidth: number;
+}): number {
+  const { viewportWidth, rightPanelWidth } = options;
+  // 40% of the right panel gives the tree a comfortable share without
+  // squeezing the viewer below its minimum.
+  const maxWidth = getRightPanelTreeMaxWidth(options);
+  const candidate = rightPanelWidth * 0.4;
+  if (viewportWidth === 0) return RIGHT_PANEL_TREE_FALLBACK_WIDTH;
+  void viewportWidth; // reserved for future responsive tuning
+  return clampPanelWidth(candidate, RIGHT_PANEL_TREE_MIN_WIDTH, maxWidth);
 }

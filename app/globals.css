@@ -1450,7 +1450,7 @@ span.token.table {
   transition: background 0.1s;
 }
 
-.piweb-sidebar-row:not(.piweb-sidebar-row--plain):hover {
+.piweb-sidebar-row:hover {
   background: var(--bg-selected);
 }
 
@@ -1477,4 +1477,11 @@ span.token.table {
   pointer-events: auto;
 }
 
-
+/* @pierre/trees hardcodes `margin-block: 1px` on the search input inside its
+ * shadow DOM (no override variable is exposed). That gives the search box a
+ * 1px inset above and below, so it sits 1px lower than the first row's top
+ * edge. Pull the host up 1px so the search input's top margin is clipped and
+ * the input starts flush with the panel — matching the rows' top alignment. */
+file-tree {
+  margin-top: -1px;
+}

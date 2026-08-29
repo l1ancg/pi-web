@@ -2,6 +2,26 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+// View Transitions API is not in the TS 5.4 lib.dom.d.ts. The runtime check
+// (`typeof document.startViewTransition === "function"`) gates usage, so we
+// only need the local typing for the call site.
+interface ViewTransitionHandle {
+  ready: Promise<void>;
+  finished: Promise<void>;
+  skipTransition(): void;
+}
+interface ViewTransitionCapableDocument extends Document {
+  startViewTransition(callback: () => void): ViewTransitionHandle;
+}
+function getViewTransitionDocument(): ViewTransitionCapableDocument | null {
+  if (typeof document === "undefined") return null;
+  const candidate = document as Document & {
+    startViewTransition?: (cb: () => void) => ViewTransitionHandle;
+  };
+  if (typeof candidate.startViewTransition !== "function") return null;
+  return candidate as ViewTransitionCapableDocument;
+}
+
 export type ThemePreference = "light" | "dark" | "auto";
 export type ResolvedTheme = "light" | "dark";
 
@@ -129,7 +149,8 @@ export function useTheme() {
     };
 
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const supportsVT = typeof document.startViewTransition === "function";
+    const vtDocument = getViewTransitionDocument();
+    const supportsVT = vtDocument !== null;
 
     if (!supportsVT || reduceMotion) {
       apply();
@@ -143,7 +164,7 @@ export function useTheme() {
       Math.max(y, window.innerHeight - y),
     );
 
-    const transition = document.startViewTransition(apply);
+    const transition = vtDocument.startViewTransition(apply);
     transition.ready
       .then(() => {
         document.documentElement.animate(

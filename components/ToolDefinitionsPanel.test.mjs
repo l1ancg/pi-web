@@ -6,8 +6,11 @@ const panelSource = await readFile(new URL("./ToolDefinitionsPanel.tsx", import.
 const systemSource = await readFile(new URL("./SystemPromptPanel.tsx", import.meta.url), "utf8");
 const appShellSource = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
 
-test("keeps System and Tools in separate adjacent toolbar actions", () => {
-  assert.match(appShellSource, /handleSystemInfoToggle\("system", mobile\)[\s\S]*?handleSystemInfoToggle\("tools", mobile\)/);
+test("exposes System and Tools through a single header dropdown", () => {
+  // The 3-dots header menu dispatches both panels; their buttons live in the
+  // dropdown panel, not as adjacent toolbar actions.
+  assert.match(appShellSource, /handleSystemInfoToggle\("system", (?:mobile|isMobile)\)/);
+  assert.match(appShellSource, /handleSystemInfoToggle\("tools", (?:mobile|isMobile)\)/);
   assert.match(appShellSource, /activeTopPanel === "system"[\s\S]*?<SystemPromptPanel/);
   assert.match(appShellSource, /activeTopPanel === "tools"[\s\S]*?<ToolDefinitionsPanel/);
   assert.doesNotMatch(systemSource, /ToolEntry|tools/);

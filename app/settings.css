@@ -1052,6 +1052,68 @@
   font-size: 11px;
 }
 
+.settings-default-cwd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: 520px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--bg-panel);
+}
+
+.settings-default-cwd-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+}
+
+.settings-default-cwd-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.settings-default-cwd-button {
+  padding: 6px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.settings-default-cwd-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-default-cwd-button.is-secondary {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.settings-default-cwd-button.is-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-default-cwd-button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
 @media (max-width: 640px) {
   .config-panel-root.is-modal > .config-panel-surface {
     width: calc(100vw - 16px);

@@ -69,10 +69,14 @@ const FILE_CODE_STYLE: CSSProperties = {
 };
 
 const FILE_LINE_NUMBER_STYLE: CSSProperties = {
-  width: 48,
-  minWidth: 48,
+  // Width is sized to comfortably hold five-digit line numbers; padding on
+  // both sides keeps the right-aligned number away from the border.
+  display: "inline-block",
+  width: 56,
+  minWidth: 56,
   padding: "0 10px",
   textAlign: "right",
+  whiteSpace: "nowrap",
   color: "var(--text-dim)",
   background: "var(--bg-panel)",
   borderRight: "1px solid var(--border)",
@@ -80,6 +84,8 @@ const FILE_LINE_NUMBER_STYLE: CSSProperties = {
   fontSize: 11,
   fontStyle: "normal",
   fontVariantNumeric: "tabular-nums",
+  // Matches the code line-height so line numbers stay vertically aligned
+  // with their corresponding source line.
   lineHeight: "20.8px",
   userSelect: "none",
   flexShrink: 0,

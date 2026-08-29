@@ -28,11 +28,11 @@
     "package.json"
   ],
   "scripts": {
-    "dev": "next dev -H 127.0.0.1 -p 30141",
-    "dev:lan": "next dev -H 0.0.0.0 -p 30141",
+    "dev": "next dev -H 127.0.0.1 -p 30142",
+    "dev:lan": "next dev -H 0.0.0.0 -p 30142",
     "build": "next build --webpack",
-    "start": "next start -H 127.0.0.1 -p 30141",
-    "start:lan": "next start -H 0.0.0.0 -p 30141",
+    "start": "next start -H 127.0.0.1 -p 30142",
+    "start:lan": "next start -H 0.0.0.0 -p 30142",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test \"app/**/*.test.mjs\" \"components/**/*.test.mjs\" \"hooks/**/*.test.mjs\" \"lib/**/*.test.mjs\" \"public/**/*.test.mjs\"",
     "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public"
@@ -42,6 +42,8 @@
     "@earendil-works/pi-ai": "0.84.3",
     "@earendil-works/pi-coding-agent": "0.84.3",
     "@earendil-works/pi-tui": "0.84.3",
+    "@pierre/diffs": "^1.3.6",
+    "@pierre/trees": "^1.0.0-beta.6",
     "ansi_up": "^6.0.6",
     "js-yaml": "^5.2.3",
     "next": "16.3.1",
@@ -76,6 +78,6 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5"
+    "typescript": "^5.4.0"
   }
 }

@@ -6,7 +6,8 @@ import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { SessionSidebar } from "./SessionSidebar";
 import { ChatWindow } from "./ChatWindow";
 import { FileViewer } from "./FileViewer";
-import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
+import { PierreFileExplorer } from "./PierreFileExplorer";
+import { ReviewPanel } from "./ReviewPanel";
 import { SettingsPanel, SettingsSectionIcon } from "./SettingsPanel";
 import { ProjectTrustDialog } from "./ProjectTrustDialog";
 import { BranchNavigator, hasSessionBranches } from "./BranchNavigator";
@@ -36,12 +37,17 @@ import {
   workspaceKeyOf,
 } from "@/lib/workspace-memory";
 import {
+  getDefaultRightPanelTreeWidth,
   getDefaultRightPanelWidth,
   getRightPanelMaxWidth,
+  getRightPanelTreeMaxWidth,
   getSidebarMaxWidth,
   RIGHT_PANEL_FALLBACK_WIDTH,
   RIGHT_PANEL_MAX_WIDTH,
   RIGHT_PANEL_MIN_WIDTH,
+  RIGHT_PANEL_TREE_FALLBACK_WIDTH,
+  RIGHT_PANEL_TREE_MAX_WIDTH,
+  RIGHT_PANEL_TREE_MIN_WIDTH,
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
@@ -136,6 +142,7 @@ export function AppShell() {
   const [mobileSidebarReady, setMobileSidebarReady] = useState(false);
   const sidebarWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const rightPanelWidthRef = useRef(RIGHT_PANEL_FALLBACK_WIDTH);
+  const rightPanelTreeWidthRef = useRef(RIGHT_PANEL_TREE_FALLBACK_WIDTH);
   const getResponsiveRightPanelWidth = useCallback(
     () => typeof window === "undefined"
       ? RIGHT_PANEL_FALLBACK_WIDTH
@@ -162,6 +169,24 @@ export function AppShell() {
       }),
     [sidebarOpen],
   );
+  const getResponsiveRightPanelTreeWidth = useCallback(
+    () => typeof window === "undefined"
+      ? RIGHT_PANEL_TREE_FALLBACK_WIDTH
+      : getDefaultRightPanelTreeWidth({
+        viewportWidth: window.innerWidth,
+        rightPanelWidth: rightPanelWidthRef.current,
+      }),
+    [],
+  );
+  const getResponsiveRightPanelTreeMaxWidth = useCallback(
+    () => typeof window === "undefined"
+      ? RIGHT_PANEL_TREE_MAX_WIDTH
+      : getRightPanelTreeMaxWidth({
+        viewportWidth: window.innerWidth,
+        rightPanelWidth: rightPanelWidthRef.current,
+      }),
+    [],
+  );
   const sidebarResizer = useResizablePanel({
     ariaLabel: translate("layout.resizeSidebar"),
     cssVariable: "--sidebar-width",
@@ -185,8 +210,21 @@ export function AppShell() {
     storageKey: "pi-right-panel-width",
     widthRef: rightPanelWidthRef,
   });
+  const rightPanelTreeResizer = useResizablePanel({
+    ariaLabel: translate("layout.resizeFilePanel"),
+    cssVariable: "--right-panel-tree-width",
+    defaultWidth: RIGHT_PANEL_TREE_FALLBACK_WIDTH,
+    getDefaultWidth: getResponsiveRightPanelTreeWidth,
+    getMaxWidth: getResponsiveRightPanelTreeMaxWidth,
+    growthDirection: "right",
+    maxWidth: RIGHT_PANEL_TREE_MAX_WIDTH,
+    minWidth: RIGHT_PANEL_TREE_MIN_WIDTH,
+    storageKey: "pi-right-panel-tree-width",
+    widthRef: rightPanelTreeWidthRef,
+  });
   const reclampSidebarWidth = sidebarResizer.reclampWidth;
   const reclampRightPanelWidth = rightPanelResizer.reclampWidth;
+  const reclampRightPanelTreeWidth = rightPanelTreeResizer.reclampWidth;
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
   useEffect(() => {
@@ -199,7 +237,8 @@ export function AppShell() {
     if (!rightPanelOpen) return;
     reclampSidebarWidth();
     reclampRightPanelWidth();
-  }, [reclampRightPanelWidth, reclampSidebarWidth, rightPanelOpen]);
+    reclampRightPanelTreeWidth();
+  }, [reclampRightPanelWidth, reclampSidebarWidth, reclampRightPanelTreeWidth, rightPanelOpen]);
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const topBarRef = useRef<HTMLDivElement>(null);
   const topPanelRef = useRef<HTMLDivElement>(null);
@@ -484,8 +523,8 @@ export function AppShell() {
   // the Files body. The right side of the Files tab is a single FileViewer; the
   // legacy per-file dynamic tabs were collapsed into one viewer because the
   // sidebar already navigates by selecting a different file.
-  type RightTab = "files" | "review";
-  const [rightTab, setRightTab] = useState<RightTab>("files");
+  type RightTab = "files2" | "review";
+  const [rightTab, setRightTab] = useState<RightTab>("files2");
   interface OpenFileEntry {
     filePath: string;
     sourceSessionId: string | null;
@@ -493,26 +532,12 @@ export function AppShell() {
     viewerState: FileViewerState | undefined;
   }
   const [openFile, setOpenFile] = useState<OpenFileEntry | null>(null);
-  const fileExplorerRef = useRef<FileExplorerHandle>(null);
-  const [fileSearchOpen, setFileSearchOpen] = useState(false);
-  const [fileUploadBusy, setFileUploadBusy] = useState(false);
-  const [changesCount, setChangesCount] = useState(0);
-  const [changesCollapsed, setChangesCollapsed] = useState(true);
-  const [explorerRefreshDone, setExplorerRefreshDone] = useState(false);
-  const explorerRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleFileViewerStateChange = useCallback((viewerState: FileViewerState) => {
     // The viewer is keyed by filePath so only the active file's viewer is
     // mounted; any late callback from a stale viewer would still target the
     // file we are currently displaying, so a plain merge is safe.
     setOpenFile((prev) => (prev ? { ...prev, viewerState } : prev));
-  }, []);
-
-  const handleRefreshExplorer = useCallback(() => {
-    setExplorerRefreshDone(true);
-    setExplorerRefreshKey((k) => k + 1);
-    if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
-    explorerRefreshTimerRef.current = setTimeout(() => setExplorerRefreshDone(false), 2000);
   }, []);
 
   // Same @mention format as the chat input's @ autocomplete, so the agent's
@@ -577,6 +602,19 @@ export function AppShell() {
         const data = await response.json().catch(() => ({})) as { cwd?: string; error?: string };
         if (!response.ok || !data.cwd) {
           throw new Error(data.error ?? `HTTP ${response.status}`);
+        }
+
+        // Register the requested cwd in conf.json so the new session stays
+        // visible after the initial filter applies. Best-effort — the
+        // chat composer still works even if registration fails.
+        try {
+          await fetch("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cwd: data.cwd }),
+          });
+        } catch {
+          /* best-effort */
         }
 
         // The sidebar will notify us when it adopts this cwd. Avoid remounting
@@ -1021,7 +1059,7 @@ export function AppShell() {
   const handleOpenFile = useCallback((
     filePath: string,
     _fileName: string,
-    options?: { sourceSessionId?: string | null; modeHint?: "diff" },
+    options?: { sourceSessionId?: string | null; modeHint?: "diff"; preferredTab?: RightTab },
   ) => {
     const sourceSessionId = options?.sourceSessionId ?? null;
     const modeHint = options?.modeHint;
@@ -1048,7 +1086,7 @@ export function AppShell() {
       };
     });
     setRightPanelOpen(true);
-    setRightTab("files");
+    setRightTab(options?.preferredTab ?? "files2");
     // On mobile the file panel is full-screen; close the drawer so it shows.
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
@@ -1056,6 +1094,15 @@ export function AppShell() {
   const handleOpenLinkedFile = useCallback((filePath: string) => {
     handleOpenFile(filePath, getFileName(filePath), { sourceSessionId: selectedSession?.id ?? null });
   }, [handleOpenFile, selectedSession?.id]);
+
+  const handlePierreOpenFile = useCallback((filePath: string) => {
+    // PierreFileExplorer only knows absolute paths and does not emit a source
+    // session id; reuse the currently active file source so the FileViewer
+    // state stays consistent when the user switches tabs mid-edit.
+    handleOpenFile(filePath, getFileName(filePath), {
+      sourceSessionId: openFile?.sourceSessionId ?? selectedSession?.id ?? null,
+    });
+  }, [handleOpenFile, openFile?.sourceSessionId, selectedSession?.id]);
 
   const handleViewFullHistory = useCallback(() => {
     if (!selectedSession) return;
@@ -2474,31 +2521,31 @@ ${translate("chat.renameSessionTitle")}`}
             <button
               type="button"
               role="tab"
-              aria-selected={rightTab === "files"}
-              onClick={() => setRightTab("files")}
+              aria-selected={rightTab === "files2"}
+              onClick={() => setRightTab("files2")}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
                 height: 36,
                 padding: "0 14px",
-                background: rightTab === "files" ? "var(--bg)" : "var(--bg-panel)",
+                background: rightTab === "files2" ? "var(--bg)" : "var(--bg-panel)",
                 border: "none",
                 borderRight: "1px solid var(--border)",
-                color: rightTab === "files" ? "var(--text)" : "var(--text-muted)",
+                color: rightTab === "files2" ? "var(--text)" : "var(--text-muted)",
                 cursor: "pointer",
                 fontSize: 12,
-                fontWeight: rightTab === "files" ? 500 : 400,
+                fontWeight: rightTab === "files2" ? 500 : 400,
                 whiteSpace: "nowrap",
                 flexShrink: 0,
                 transition: "background 0.1s, color 0.1s",
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, opacity: rightTab === "files" ? 1 : 0.7 }}>
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="9" y1="13" x2="15" y2="13" />
-                <line x1="9" y1="17" x2="13" y2="17" />
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, opacity: rightTab === "files2" ? 1 : 0.7 }}>
+                <rect x="4" y="3" width="16" height="18" rx="2" />
+                <line x1="8" y1="8" x2="16" y2="8" />
+                <line x1="8" y1="12" x2="13" y2="12" />
+                <line x1="8" y1="16" x2="11" y2="16" />
               </svg>
               {translate("rightPanel.filesTab")}
             </button>
@@ -2532,31 +2579,10 @@ ${translate("chat.renameSessionTitle")}`}
               {translate("rightPanel.reviewTab")}
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setRightPanelOpen(false)}
-            aria-controls="file-panel"
-            aria-expanded={rightPanelOpen}
-            title={translate("files.hidePanel")}
-            aria-label={translate("files.hidePanel")}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: TOP_BAR_ICON_BUTTON_SIZE, height: TOP_BAR_ICON_BUTTON_SIZE, padding: 0,
-              background: "var(--bg-selected)", border: "none", borderLeft: "1px solid var(--border)",
-              color: "var(--text)", cursor: "pointer", flexShrink: 0, transition: "color 0.12s",
-            }}
-            onMouseEnter={(event) => { event.currentTarget.style.color = "var(--accent)"; }}
-            onMouseLeave={(event) => { event.currentTarget.style.color = "var(--text)"; }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="15" y1="3" x2="15" y2="21" />
-            </svg>
-          </button>
         </div>
-
-        {/* Tab body — Files (split-pane) or Review (TODO placeholder). */}
+        {/* Tab body — Files 2 (split-pane) or Review. */}
         <div style={{ flex: 1, overflow: "hidden", paddingBottom: "env(safe-area-inset-bottom)" }}>
-          {rightTab === "files" ? (
+          {rightTab === "files2" ? (
             <div
               style={{
                 display: "flex",
@@ -2566,16 +2592,13 @@ ${translate("chat.renameSessionTitle")}`}
                 minHeight: 0,
               }}
             >
-              {/* Left side: file tree (existing FileExplorer behavior, with its
-                  header controls migrated from the sidebar). */}
               <div
+                ref={rightPanelTreeResizer.panelRef}
                 className="right-panel-files-tree"
                 style={{
                   display: "flex",
                   flexDirection: "column",
                   width: "var(--right-panel-tree-width, 260px)",
-                  minWidth: 200,
-                  maxWidth: 420,
                   flexShrink: 0,
                   borderRight: "1px solid var(--border)",
                   background: "var(--bg-panel)",
@@ -2583,176 +2606,13 @@ ${translate("chat.renameSessionTitle")}`}
                   minHeight: 0,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    flexShrink: 0,
-                    padding: "2px 4px 2px 8px",
-                    borderBottom: "1px solid var(--border)",
-                    minHeight: 32,
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "4px 4px",
-                      color: "var(--text-dim)",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: "rotate(0deg)", transition: "transform 0.15s", flexShrink: 0 }}>
-                      <polyline points="3 2 7 5 3 8" />
-                    </svg>
-                    {translate("files.explorer")}
-                  </div>
-                  {changesCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setChangesCollapsed((v) => !v)}
-                      title={translate("sidebar.changedFiles", { count: changesCount })}
-                      aria-label={translate("sidebar.changedFiles", { count: changesCount })}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: 22,
-                        height: 22,
-                        padding: 0,
-                        background: changesCollapsed ? "transparent" : "var(--bg-selected)",
-                        border: "none",
-                        borderRadius: 5,
-                        color: changesCollapsed ? "var(--text-dim)" : "var(--accent)",
-                        cursor: "pointer",
-                        flexShrink: 0,
-                        transition: "background 0.12s, color 0.12s",
-                      }}
-                      onMouseEnter={(event) => { event.currentTarget.style.background = changesCollapsed ? "var(--bg-hover)" : "var(--bg-selected)"; }}
-                      onMouseLeave={(event) => { event.currentTarget.style.background = changesCollapsed ? "transparent" : "var(--bg-selected)"; }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M3 12h6" />
-                        <path d="M15 12h6" />
-                      </svg>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setFileSearchOpen((open) => !open)}
-                    title={translate("sidebar.searchFiles")}
-                    aria-label={translate("sidebar.searchFiles")}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 22,
-                      height: 22,
-                      padding: 0,
-                      background: fileSearchOpen ? "var(--bg-selected)" : "transparent",
-                      border: "none",
-                      borderRadius: 5,
-                      color: fileSearchOpen ? "var(--accent)" : "var(--text-dim)",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                      transition: "background 0.12s, color 0.12s",
-                    }}
-                    onMouseEnter={(event) => { event.currentTarget.style.background = fileSearchOpen ? "var(--bg-selected)" : "var(--bg-hover)"; }}
-                    onMouseLeave={(event) => { event.currentTarget.style.background = fileSearchOpen ? "var(--bg-selected)" : "transparent"; }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <circle cx="11" cy="11" r="7" />
-                      <path d="m20 20-4-4" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fileExplorerRef.current?.openUploadPicker()}
-                    disabled={fileUploadBusy}
-                    title={translate("sidebar.uploadFilesTitle")}
-                    aria-label={translate("sidebar.uploadFilesTitle")}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 22,
-                      height: 22,
-                      padding: 0,
-                      background: "transparent",
-                      border: "none",
-                      borderRadius: 5,
-                      color: "var(--text-dim)",
-                      cursor: fileUploadBusy ? "default" : "pointer",
-                      opacity: fileUploadBusy ? 0.4 : 1,
-                      flexShrink: 0,
-                      transition: "background 0.12s, color 0.12s",
-                    }}
-                    onMouseEnter={(event) => { if (!fileUploadBusy) event.currentTarget.style.background = "var(--bg-hover)"; }}
-                    onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <path d="m17 8-5-5-5 5" />
-                      <path d="M12 3v12" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRefreshExplorer}
-                    title={translate("sidebar.refreshExplorer")}
-                    aria-label={translate("sidebar.refreshExplorer")}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 22,
-                      height: 22,
-                      padding: 0,
-                      background: explorerRefreshDone ? "rgba(74,222,128,0.18)" : "transparent",
-                      border: "none",
-                      borderRadius: 5,
-                      color: explorerRefreshDone ? "#4ade80" : "var(--text-dim)",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                      transition: "background 0.3s, color 0.3s",
-                    }}
-                  >
-                    {explorerRefreshDone ? (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                        <path d="M3 3v5h5" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
                 <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", minHeight: 0 }}>
                   {activeCwd ? (
-                    <FileExplorer
-                      ref={fileExplorerRef}
+                    <PierreFileExplorer
                       cwd={activeCwd}
-                      onOpenFile={(filePath, fileName, options) => handleOpenFile(
-                        filePath,
-                        fileName,
-                        { sourceSessionId: options?.sourceSessionId ?? selectedSession?.id ?? null, modeHint: options?.modeHint },
-                      )}
+                      onOpenFile={handlePierreOpenFile}
                       refreshKey={explorerRefreshKey}
-                      onAtMention={handleAtMention}
-                      onAtMentions={handleAtMentions}
-                      onUploadBusyChange={setFileUploadBusy}
-                      changesCollapsed={changesCollapsed}
-                      onChangesCountChange={setChangesCount}
-                      fileSearchOpen={fileSearchOpen}
-                      onFileSearchOpenChange={setFileSearchOpen}
+                      activeFilePath={openFile?.filePath ?? null}
                     />
                   ) : (
                     <div style={{ padding: "8px 12px", color: "var(--text-dim)", fontSize: 12 }}>
@@ -2761,6 +2621,15 @@ ${translate("chat.renameSessionTitle")}`}
                   )}
                 </div>
               </div>
+
+              {/* Drag handle between the file tree and the file viewer. */}
+              <div
+                {...rightPanelTreeResizer.separatorProps}
+                aria-controls="right-panel-files-tree"
+                className={`panel-resize-handle right-panel-tree-resize-handle${rightPanelTreeResizer.isResizing ? " is-resizing" : ""}`}
+                data-resize-handle="right-panel-tree"
+                title={`${translate("layout.resizeFilePanel")}: ${translate("layout.resizeHint")}`}
+              />
 
               {/* Right side: file viewer (only the active file is mounted). */}
               <div
@@ -2800,21 +2669,9 @@ ${translate("chat.renameSessionTitle")}`}
               </div>
             </div>
           ) : (
-            /* Review tab: TODO placeholder. */
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--text-dim)",
-                fontSize: 12,
-                padding: 16,
-                textAlign: "center",
-              }}
-            >
-              {translate("rightPanel.reviewTodo")}
-            </div>
+            /* Review tab: lists git status and renders the selected file
+             * diff via @pierre/diffs. */
+            <ReviewPanel cwd={activeCwd} refreshKey={explorerRefreshKey} />
           )}
         </div>
       </div>
@@ -2829,6 +2686,7 @@ ${translate("chat.renameSessionTitle")}`}
           setModelsRefreshKey((key) => key + 1);
         }}
         onSessionReloaded={() => undefined}
+        onProjectConfigChanged={() => setRefreshKey((key) => key + 1)}
       />
     )}
     {projectTrustDialogOpen && projectTrustCwd && (
@@ -2845,3 +2703,4 @@ ${translate("chat.renameSessionTitle")}`}
     </>
   );
 }
+ 

@@ -19,7 +19,7 @@ test("uses a compact narrow-mobile toolbar with a floating action layer", () => 
     /data-mobile-toolbar-actions="true"[\s\S]*?position: "absolute"[\s\S]*?right: 0,[\s\S]*?left: TOP_BAR_ICON_BUTTON_SIZE/,
   );
 
-  for (const action of ["history", "name", "agents", "branches", "system", "tools", "theme", "language"]) {
+  for (const action of ["name", "agents", "branches", "moreMenu"]) {
     assert.match(source, new RegExp(`data-mobile-toolbar-action=(?:\\{mobile \\? )?"${action}"`));
   }
 });
@@ -62,20 +62,17 @@ test("closes the mobile action layer on outside click, Escape, layout changes, a
 
 test("keeps the mobile action layer open after using an expanded action", () => {
   const toggleTopPanel = source.match(/const toggleTopPanel = useCallback\([\s\S]*?\n  \}, \[isMobile, isNarrowMobile\]\);/)?.[0];
-  const themeHandler = source.match(/const renderThemeButton =[\s\S]*?onClick=\{\(event\) => \{[\s\S]*?toggleTheme\([\s\S]*?\n      \}\}/)?.[0];
-  const historyHandler = source.match(/onClick=\{\(\) => \{[\s\S]*?handleViewFullHistory\(\);[\s\S]*?\n          \}\}/)?.[0];
   const autoNameHandler = source.match(/onClick=\{\(\) => \{[\s\S]*?void handleAutoName\(\);[\s\S]*?\n              \}\}/)?.[0];
 
-  for (const handler of [toggleTopPanel, themeHandler, historyHandler, autoNameHandler]) {
+  for (const handler of [toggleTopPanel, autoNameHandler]) {
     assert.ok(handler);
     assert.doesNotMatch(handler, /setMobileToolbarMoreOpen\(false\)/);
     assert.match(handler, /setMobileToolbarMoreOpen\(true\)/);
   }
 
   assert.match(source, /toggleTopPanel\("branches", true\)/);
-  assert.match(source, /handleSystemInfoToggle\("system", mobile\)/);
-  assert.match(source, /handleSystemInfoToggle\("tools", mobile\)/);
-  assert.match(source, /toggleTopPanel\("language", mobile\)/);
+  assert.match(source, /handleSystemInfoToggle\("system", (?:mobile|isMobile)\)/);
+  assert.match(source, /handleSystemInfoToggle\("tools", (?:mobile|isMobile)\)/);
   assert.match(source, /onClick=\{\(\) => toggleTopPanel\("session"\)\}/);
 });
 
