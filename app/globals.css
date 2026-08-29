@@ -1422,6 +1422,22 @@ span.token.table {
   }
 }
 
+/* Right panel Files tab: split-pane (file tree + file viewer). */
+
+.right-panel-files-viewer {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  /* On mobile the file tree scrolls inside its own slice; the viewer takes
+     the remaining space. Keep the tree compact so the viewer still fits. */
+  .right-panel-files-tree {
+    width: 180px !important;
+    min-width: 140px !important;
+    max-width: 200px !important;
+  }
+}
+
 /* Sidebar rows: hover-reveal action buttons.
    Action buttons overlay the right edge of the row — the row's title text
    always claims the full available width, so we never reserve empty space
@@ -1430,6 +1446,16 @@ span.token.table {
 .piweb-sidebar-row {
   position: relative;
   overflow: hidden;
+  background: transparent;
+  transition: background 0.1s;
+}
+
+.piweb-sidebar-row:not(.piweb-sidebar-row--plain):hover {
+  background: var(--bg-selected);
+}
+
+.piweb-sidebar-row:not(.piweb-sidebar-row--plain)[data-active="true"] {
+  background: var(--bg-selected);
 }
 
 .piweb-sidebar-actions {
@@ -1440,44 +1466,15 @@ span.token.table {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding-left: 18px;
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--bg-panel) 0%, transparent) 0%,
-    color-mix(in srgb, var(--bg-panel) 92%, transparent) 60%,
-    var(--bg-panel) 100%
-  );
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s ease;
   z-index: 1;
 }
 
-.piweb-sidebar-row:hover .piweb-sidebar-actions,
-.piweb-sidebar-row:focus-within .piweb-sidebar-actions,
-.piweb-sidebar-row[data-active="true"] .piweb-sidebar-actions {
+.piweb-sidebar-row:hover .piweb-sidebar-actions {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* On the actively selected row the row background is --bg-selected, not
-   --bg-panel. Recolor the fade to match so the overlay blends in. */
-.piweb-sidebar-row[data-active="true"] .piweb-sidebar-actions {
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--bg-selected) 0%, transparent) 0%,
-    color-mix(in srgb, var(--bg-selected) 92%, transparent) 60%,
-    var(--bg-selected) 100%
-  );
-}
 
-/* Each action button sits on a slight raised surface so it reads as a
-   button, not as text — even with the gradient mask the icon is crisp. */
-.piweb-sidebar-actions > button {
-  background: var(--bg) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-}
-
-.piweb-sidebar-row[data-active="true"] .piweb-sidebar-actions > button {
-  background: var(--bg-panel) !important;
-}

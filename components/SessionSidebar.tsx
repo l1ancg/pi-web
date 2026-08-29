@@ -16,8 +16,6 @@ import { skillExpansionToCommand } from "@/lib/slash-display";
 import { formatRelativeTime } from "@/lib/i18n/format";
 import { useI18n } from "@/hooks/useI18n";
 import { DirectoryPicker } from "./DirectoryPicker";
-import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
-import { loadExplorerOpen, saveExplorerOpen } from "@/lib/file-explorer-state";
 
 declare global {
   interface Window {
@@ -359,7 +357,6 @@ interface ActionButtonProps {
   ariaLabel: string;
   color?: string;
   hoverColor?: string;
-  hoverBg?: string;
   disabled?: boolean;
   size?: number;
   children: ReactNode;
@@ -371,7 +368,6 @@ function ActionButton({
   ariaLabel,
   color = "var(--text-dim)",
   hoverColor = "var(--text)",
-  hoverBg = "var(--bg-hover)",
   disabled = false,
   size = 22,
   children,
@@ -397,13 +393,14 @@ function ActionButton({
         height: size,
         padding: 0,
         flexShrink: 0,
-        background: hovered ? hoverBg : "transparent",
+        background: "transparent",
         border: "none",
-        borderRadius: 5,
+        borderRadius: 0,
+        pointerEvents: "auto",
         color: hovered ? hoverColor : color,
         cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.4 : 1,
-        transition: "background 0.12s, color 0.12s",
+        transition: "color 0.12s",
       }}
     >
       {children}
@@ -580,9 +577,7 @@ function SessionRow({
         paddingLeft: 10 + depth * SUBROW_INDENT,
         paddingRight: 6,
         cursor: "pointer",
-        background: isSelected ? "var(--bg-selected)" : "transparent",
         color: isSelected ? "var(--text)" : "var(--text)",
-        transition: "background 0.1s",
       }}
     >
       {depth > 0 ? (
@@ -646,7 +641,6 @@ function SessionRow({
           title={t("sidebar.deleteWithShiftClick")}
           ariaLabel={t("sidebar.delete")}
           hoverColor="#ef4444"
-          hoverBg="rgba(239,68,68,0.10)"
           disabled={pendingDeleteKind !== null}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -713,8 +707,7 @@ function ProjectItem({
   return (
     <div className="piweb-sidebar-group">
       <div
-        className="piweb-sidebar-row"
-        data-active={isActive && !expanded ? "true" : undefined}
+        className="piweb-sidebar-row piweb-sidebar-row--plain"
         style={{
           height: ROW_HEIGHT,
           display: "flex",
@@ -722,9 +715,7 @@ function ProjectItem({
           gap: 5,
           paddingLeft: 8,
           paddingRight: 6,
-          background: isActive && !expanded ? "var(--bg-selected)" : "transparent",
           color: "var(--text)",
-          transition: "background 0.1s",
         }}
       >
         <button
@@ -732,6 +723,7 @@ function ProjectItem({
           onClick={onToggle}
           aria-expanded={expanded}
           aria-label={expanded ? t("sidebar.collapse") : t("sidebar.expand")}
+          title={expanded ? t("sidebar.collapse") : t("sidebar.expand")}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -762,29 +754,33 @@ function ProjectItem({
           strokeWidth="1.4"
           strokeLinecap="round"
           strokeLinejoin="round"
-          style={{ flexShrink: 0 }}
+          style={{ flexShrink: 0, pointerEvents: "none" }}
           aria-hidden="true"
         >
           <path d="M1.5 4.5A1 1 0 0 1 2.5 3.5h3l1 1.2h6A1 1 0 0 1 13.5 5.7v6.3a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1V4.5Z" />
         </svg>
 
-        <button
-          type="button"
-          onClick={onToggle}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={expanded ? t("sidebar.collapse") : t("sidebar.expand")}
           title={project.root}
+          onClick={onToggle}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onToggle();
+            }
+          }}
           style={{
             flex: 1,
             minWidth: 0,
             display: "flex",
             alignItems: "center",
             gap: 6,
-            background: "transparent",
-            border: "none",
-            padding: 0,
             cursor: "pointer",
-            textAlign: "left",
-            color: "inherit",
-            font: "inherit",
+            userSelect: "none",
+            borderRadius: 4,
           }}
         >
           <span
@@ -816,17 +812,20 @@ function ProjectItem({
               <span style={{ unicodeBidi: "plaintext" }}>{subtitle}</span>
             </span>
           )}
-        </button>
+        </div>
 
         <ActivityCounts activity={activity} />
 
-        <span className="piweb-sidebar-actions">
+        <span
+          className="piweb-sidebar-actions"
+          onClick={(event) => event.stopPropagation()}
+          style={{ pointerEvents: "none" }}
+        >
           <ActionButton
             onClick={() => onNewSession(project.root)}
             title={t("sidebar.newSessionInFolder", { path: project.root })}
             ariaLabel={t("sidebar.newSessionInFolder", { path: project.root })}
             hoverColor="var(--accent)"
-            hoverBg="rgba(37,99,235,0.10)"
             disabled={pendingDeleteKind !== null}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -839,7 +838,6 @@ function ProjectItem({
             title={t("sidebar.delete")}
             ariaLabel={t("sidebar.delete")}
             hoverColor="#ef4444"
-            hoverBg="rgba(239,68,68,0.10)"
             disabled={pendingDeleteKind !== null || !hasChildren}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -922,6 +920,7 @@ function SectionHeader({
   const { t } = useI18n();
   return (
     <div
+      className="piweb-sidebar-row"
       style={{
         height: SECTION_HEADER_HEIGHT,
         display: "flex",
@@ -929,6 +928,7 @@ function SectionHeader({
         gap: 4,
         padding: "4px 6px 4px 8px",
         flexShrink: 0,
+        userSelect: "none",
       }}
     >
       <button
@@ -957,6 +957,16 @@ function SectionHeader({
         </svg>
       </button>
       <span
+        role="button"
+        tabIndex={0}
+        aria-label={expanded ? t("sidebar.collapse") : t("sidebar.expand")}
+        onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
         style={{
           fontSize: 11,
           fontWeight: 600,
@@ -968,24 +978,30 @@ function SectionHeader({
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
+          cursor: "pointer",
         }}
       >
         {title}
       </span>
       {onAdd && (
-        <ActionButton
-          onClick={onAdd}
-          title={t("sidebar.addProject")}
-          ariaLabel={t("sidebar.addProject")}
-          hoverColor="var(--accent)"
-          hoverBg="rgba(37,99,235,0.10)"
-          disabled={pendingDelete}
+        <span
+          className="piweb-sidebar-actions"
+          onClick={(event) => event.stopPropagation()}
+          style={{ pointerEvents: "none" }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </ActionButton>
+          <ActionButton
+            onClick={onAdd}
+            title={t("sidebar.addProject")}
+            ariaLabel={t("sidebar.addProject")}
+            hoverColor="var(--accent)"
+            disabled={pendingDelete}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </ActionButton>
+        </span>
       )}
     </div>
   );
@@ -1010,15 +1026,6 @@ interface Props {
     projectRoot?: string | null,
     projectKey?: string | null,
   ) => void;
-  onOpenFile?: (
-    filePath: string,
-    fileName: string,
-    options?: { sourceSessionId?: string | null; modeHint?: "diff" },
-  ) => void;
-  explorerRefreshKey?: number;
-  onExplorerRefresh?: () => void;
-  onAtMention?: (relativePath: string, isDir: boolean) => void;
-  onAtMentions?: (relativePaths: string[]) => void;
   onBackgroundTaskDone?: () => void;
   onRunningSessionIdsChange?: (ids: Set<string>) => void;
   onSessionsChange?: (sessions: SessionInfo[]) => void;
@@ -1039,11 +1046,6 @@ export function SessionSidebar({
   onSessionDeleted,
   selectedCwd: selectedCwdProp,
   onCwdChange,
-  onOpenFile,
-  explorerRefreshKey,
-  onExplorerRefresh,
-  onAtMention,
-  onAtMentions,
   onBackgroundTaskDone,
   onRunningSessionIdsChange,
   onSessionsChange,
@@ -1078,17 +1080,6 @@ export function SessionSidebar({
   // ── Confirm delete ────────────────────────────────────────────────────────
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-
-  // ── File explorer ─────────────────────────────────────────────────────────
-  const [explorerOpen, setExplorerOpen] = useState(true);
-  const [explorerKey, setExplorerKey] = useState(0);
-  const [explorerUploadBusy, setExplorerUploadBusy] = useState(false);
-  const [fileSearchOpen, setFileSearchOpen] = useState(false);
-  const [changesCount, setChangesCount] = useState(0);
-  const [changesCollapsed, setChangesCollapsed] = useState(true);
-  const [explorerRefreshDone, setExplorerRefreshDone] = useState(false);
-  const explorerRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fileExplorerRef = useRef<FileExplorerHandle>(null);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Load sessions
@@ -1141,10 +1132,6 @@ export function SessionSidebar({
     initialLoadDone.current = true;
     void loadSessions(isFirst, !isFirst);
   }, [loadSessions, refreshKey]);
-
-  useEffect(() => {
-    setExplorerOpen(loadExplorerOpen());
-  }, []);
 
   useEffect(() => {
     saveUnreadSessionIds(unreadSessionIds);
@@ -1294,10 +1281,6 @@ export function SessionSidebar({
       return next;
     });
   }, [selectedSessionId]);
-
-  useEffect(() => {
-    if (explorerRefreshKey !== undefined) setExplorerKey((k) => k + 1);
-  }, [explorerRefreshKey]);
 
   useEffect(() => {
     fetch("/api/home")
@@ -1576,7 +1559,6 @@ export function SessionSidebar({
   // ──────────────────────────────────────────────────────────────────────────
   // Render
   // ──────────────────────────────────────────────────────────────────────────
-  const showFileExplorer = Boolean(selectedCwd);
   const pendingDeleteKind = confirmTarget?.kind ?? null;
 
   return (
@@ -1818,162 +1800,6 @@ export function SessionSidebar({
         </div>
         )}
       </div>
-
-      {/* ── File Explorer ─────────────────────────────────────────────── */}
-      {showFileExplorer && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            flexShrink: 0,
-            minHeight: 36,
-            maxHeight: "min(45%, 340px)",
-            marginTop: 6,
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-              padding: "2px 4px 2px 8px",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() =>
-                setExplorerOpen((open) => {
-                  const next = !open;
-                  saveExplorerOpen(next);
-                  return next;
-                })
-              }
-              aria-expanded={explorerOpen}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                flex: 1,
-                padding: "4px 4px",
-                background: "none",
-                border: "none",
-                color: "var(--text-dim)",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                textAlign: "left",
-              }}
-            >
-              <svg
-                width="9"
-                height="9"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{
-                  transform: explorerOpen ? "rotate(0deg)" : "rotate(-90deg)",
-                  transition: "transform 0.15s",
-                  flexShrink: 0,
-                }}
-              >
-                <polyline points="3 2 7 5 3 8" />
-              </svg>
-              {t("files.explorer")}
-            </button>
-            {explorerOpen && changesCount > 0 && (
-              <ActionButton
-                onClick={() => setChangesCollapsed((v) => !v)}
-                title={t("sidebar.changedFiles", { count: changesCount })}
-                ariaLabel={t("sidebar.changedFiles", { count: changesCount })}
-                color={changesCollapsed ? "var(--text-dim)" : "var(--accent)"}
-                hoverBg={changesCollapsed ? "var(--bg-hover)" : "var(--bg-selected)"}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M3 12h6" />
-                  <path d="M15 12h6" />
-                </svg>
-              </ActionButton>
-            )}
-            {explorerOpen && (
-              <ActionButton
-                onClick={() => setFileSearchOpen((open) => !open)}
-                title={t("sidebar.searchFiles")}
-                ariaLabel={t("sidebar.searchFiles")}
-                color={fileSearchOpen ? "var(--accent)" : "var(--text-dim)"}
-                hoverBg={fileSearchOpen ? "var(--bg-selected)" : "var(--bg-hover)"}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m20 20-4-4" />
-                </svg>
-              </ActionButton>
-            )}
-            {explorerOpen && (
-              <ActionButton
-                onClick={() => fileExplorerRef.current?.openUploadPicker()}
-                disabled={explorerUploadBusy}
-                title={t("sidebar.uploadFilesTitle")}
-                ariaLabel={t("sidebar.uploadFilesTitle")}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <path d="m17 8-5-5-5 5" />
-                  <path d="M12 3v12" />
-                </svg>
-              </ActionButton>
-            )}
-            <ActionButton
-              onClick={() => {
-                if (onExplorerRefresh) onExplorerRefresh();
-                else setExplorerKey((k) => k + 1);
-                setExplorerRefreshDone(true);
-                if (explorerRefreshTimerRef.current) clearTimeout(explorerRefreshTimerRef.current);
-                explorerRefreshTimerRef.current = setTimeout(() => setExplorerRefreshDone(false), 2000);
-              }}
-              title={t("sidebar.refreshExplorer")}
-              ariaLabel={t("sidebar.refreshExplorer")}
-              color={explorerRefreshDone ? "#4ade80" : "var(--text-dim)"}
-              hoverBg={explorerRefreshDone ? "rgba(74,222,128,0.18)" : "var(--bg-hover)"}
-            >
-              {explorerRefreshDone ? (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
-                </svg>
-              )}
-            </ActionButton>
-          </div>
-
-          {explorerOpen && (
-            <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", minHeight: 0 }}>
-              <FileExplorer
-                ref={fileExplorerRef}
-                cwd={selectedCwd ?? ""}
-                onOpenFile={onOpenFile ?? (() => {})}
-                refreshKey={explorerKey}
-                onAtMention={onAtMention}
-                onAtMentions={onAtMentions}
-                onUploadBusyChange={setExplorerUploadBusy}
-                changesCollapsed={changesCollapsed}
-                onChangesCountChange={setChangesCount}
-                fileSearchOpen={fileSearchOpen}
-                onFileSearchOpenChange={setFileSearchOpen}
-              />
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Confirm overlay ───────────────────────────────────────────── */}
       {confirmTarget && (

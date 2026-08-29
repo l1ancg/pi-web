@@ -107,7 +107,8 @@ type NoticeState = {
 type NoticeAction =
   | { type: "add"; notice: NoticeItem }
   | { type: "mark_oldest_exiting" }
-  | { type: "remove"; id: string };
+  | { type: "remove"; id: string }
+  | { type: "clear" };
 
 export type AgentPhase =
   | { kind: "waiting_model" }
@@ -223,6 +224,8 @@ function noticeReducer(state: NoticeState, action: NoticeAction): NoticeState {
       const visible = state.visible.filter((notice) => notice.id !== action.id);
       return fillPendingNotices(visible, state.pending);
     }
+    case "clear":
+      return { visible: [], pending: [] };
     default:
       return state;
   }
@@ -1838,9 +1841,31 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [scrollToBottom]);
 
-  // Load session on mount
+  // Load session when session.id or newSessionCwd changes.
+  // Listening on these (instead of remounting via a key prop) lets us swap
+  // sessions without flashing an empty/initialization state — messages
+  // already in state are replaced when loadSession resolves.
   useEffect(() => {
     sessionHookMountedRef.current = true;
+    // Reset per-session UI state so stale values from the previous session
+    // don't briefly apply to the new one while loadSession is in flight.
+    dispatch({ type: "end" });
+    setAgentRunning(false);
+    setBashRunning(false);
+    setAgentPhase(null);
+    setPendingBash(null);
+    setRetryInfo(null);
+    setForkingEntryId(null);
+    setPendingModel(null);
+    setModelSwitching(false);
+    setIsCompacting(false);
+    setCompactError(null);
+    setCompactResult(null);
+    setPromptAnchorActive(false);
+    setExtensionDialog(null);
+    setExtensionCustomUi(null);
+    dispatchNotice({ type: "clear" });
+
     if (session) {
       sessionIdRef.current = session.id;
       loadSession(session.id, true, true).then((agentState) => {
@@ -1874,6 +1899,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (agentState.state.queuedMessages !== undefined) setQueuedMessages(normalizeQueuedMessages(agentState.state.queuedMessages));
         }
       });
+    } else {
+      // Switching to a fresh composer (new session): clear chat state so the
+      // previous session's messages do not linger.
+      sessionIdRef.current = null;
+      setData(null);
+      setActiveLeafId(null);
+      setMessages([]);
+      setEntryIds([]);
+      setHistoryCursor(null);
+      setHasEarlierMessages(false);
+      setError(null);
     }
     return () => {
       sessionHookMountedRef.current = false;
@@ -1894,7 +1930,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       closeEvents();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [session?.id, newSessionCwd]);
 
   useEffect(() => {
     onSystemPromptChange?.(systemPrompt);

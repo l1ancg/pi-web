@@ -600,7 +600,7 @@ export function ChatWindow({ session, sessionRunning, newSessionCwd, newSessionD
     />
   );
 
-  if (loading) {
+  if (loading && messages.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-text-muted">
          {t("chat.loadingSession")}
