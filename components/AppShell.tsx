@@ -243,6 +243,12 @@ export function AppShell() {
   const topBarRef = useRef<HTMLDivElement>(null);
   const topPanelRef = useRef<HTMLDivElement>(null);
   const mobileToolbarRef = useRef<HTMLDivElement>(null);
+  // Trigger buttons for the top-bar panels that close on outside pointerdown.
+  // The outside-close effect must ignore clicks on the trigger so the button
+  // can still toggle a panel closed (e.g. clicking the session-stats button
+  // again) without immediately reopening it from a follow-up setState.
+  const sessionStatsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const agentSwitcherButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // Branch navigator state — populated by ChatWindow via onBranchDataChange
   const [branchTree, setBranchTree] = useState<SessionTreeNode[]>([]);
@@ -469,16 +475,22 @@ export function AppShell() {
   }, [headerMoreOpen]);
 
   // Auto-close the System / Tools info panels on outside pointerdown or Escape.
+  // Auto-close any active top panel on outside pointerdown or Escape.
   // The header dots menu stays clickable so the user can re-trigger the
-  // dropdown without surprise interactions.
+  // dropdown without surprise interactions, and the trigger button for the
+  // current panel is excluded so clicking it does not race with its own
+  // toggle handler (which would otherwise reopen the panel that this effect
+  // just closed).
   useEffect(() => {
-    if (activeTopPanel !== "system" && activeTopPanel !== "tools") return;
+    if (!activeTopPanel) return;
     const handlePointerDown = (event: PointerEvent) => {
       const path = event.composedPath();
       const panel = topPanelRef.current;
       if (panel && path.includes(panel)) return;
       const dotsDropdown = headerMorePanelRef.current;
       if (dotsDropdown && path.includes(dotsDropdown)) return;
+      const triggerButton = sessionStatsButtonRef.current;
+      if (triggerButton && path.includes(triggerButton)) return;
       setActiveTopPanel(null);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -917,6 +929,15 @@ export function AppShell() {
     if (!sessionId || autoNameStatus.kind === "naming") return;
     if (autoNameTimerRef.current) clearTimeout(autoNameTimerRef.current);
     setActiveTopPanel(null);
+    // Force the header out of edit mode so the input collapses and the
+    // "Generating..." pill can take its place. Done before setting
+    // autoNameStatus so React batches them and we never paint a frame
+    // with both the input and the generating text visible. Any pending
+    // rename draft is dropped on purpose — the user just asked the
+    // server to overwrite the title, so keeping the local edit state
+    // would only risk a stale blur-commit racing the network result.
+    setIsEditingHeaderTitle(false);
+    setHeaderDraftName("");
     setAutoNameStatus({ kind: "naming" });
 
     try {
@@ -954,24 +975,58 @@ export function AppShell() {
   const headerTitleInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (!isEditingHeaderTitle) return;
-    const input = headerTitleInputRef.current;
-    if (!input) return;
-    input.focus();
-    input.select();
-  }, [isEditingHeaderTitle]);
-
-  useEffect(() => {
     // Reset edit state when switching to a different session.
     setIsEditingHeaderTitle(false);
     setHeaderDraftName("");
   }, [selectedSession?.id]);
 
+  // Focus the rename input and select its full text on every transition
+  // into edit mode. This keeps the "click to rename" gesture consistent:
+  // the user always lands in a fully-selected state, whether the current
+  // title is empty (newly created session) or already has a name they
+  // want to overwrite. Using select() rather than a click + keystroke
+  // combo also avoids the React render-then-focus race where the input
+  // briefly shows the placeholder before the real value lands.
+  useEffect(() => {
+    if (!isEditingHeaderTitle) return;
+    const input = headerTitleInputRef.current;
+    if (!input) return;
+    // Defer to the next frame so React has actually painted the input;
+    // without this the focus call can target the previous DOM node and
+    // silently no-op. Also re-assert the value before select(): React's
+    // controlled-input re-render can land between the focus and select
+    // calls and clear the selection, so setting .value again right
+    // before selecting makes the behaviour deterministic.
+    const handle = window.requestAnimationFrame(() => {
+      input.value = headerDraftName;
+      input.focus();
+      input.select();
+    });
+    return () => window.cancelAnimationFrame(handle);
+  }, [isEditingHeaderTitle, headerDraftName]);
+
   const beginEditHeaderTitle = useCallback(() => {
     if (!selectedSession || selectedSession.transient) return;
-    setHeaderDraftName(selectedSession.name ?? "");
+    // Block entering edit mode while a title is being generated.
+    // Without this guard, a click on the (now non-interactive) "Generating..."
+    // pill could still toggle isEditingHeaderTitle through other entry points
+    // like the keyboard handler on the surrounding div, and the input
+    // would pop back up while the network request is still in flight.
+    if (autoNameStatus.kind === "naming") return;
+    // Pre-fill the rename input with whatever the user actually sees in
+    // the title button. selectedSession.name may be undefined for sessions
+    // that have never been renamed, in which case the header renders
+    // firstMessage or a short id prefix — without falling back to the
+    // same source the input would open empty and look broken. Mirrors
+    // headerTitleSource but inlined here to avoid a forward reference
+    // to the useMemo declared further down in the component.
+    const draft = selectedSession.name
+      ?? skillExpansionToCommand(selectedSession.firstMessage)
+      ?? selectedSession.firstMessage
+      ?? selectedSession.id.slice(0, 12);
+    setHeaderDraftName(draft);
     setIsEditingHeaderTitle(true);
-  }, [selectedSession]);
+  }, [selectedSession, autoNameStatus.kind]);
 
   const handleCommitHeaderRename = useCallback(async () => {
     const sessionId = selectedSession?.id;
@@ -1322,157 +1377,237 @@ export function AppShell() {
     if (!mobile && !showChat) return null;
     return (
       <div style={{ display: "flex", alignItems: "stretch", height: "100%" }}>
-        {/* Session title — click to rename, blur to save. */}
-        {selectedSession && (isEditingHeaderTitle ? (
-          <input
-            ref={headerTitleInputRef}
-            type="text"
-            value={headerDraftName}
-            placeholder={headerTitleSource || translate("chat.untitledSession")}
-            aria-label={translate("chat.renameSession")}
-            maxLength={200}
-            onChange={(event) => setHeaderDraftName(event.target.value)}
-            onBlur={() => { void handleCommitHeaderRename(); }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                event.currentTarget.blur();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                handleCancelHeaderRename();
-              }
-            }}
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              alignSelf: "center",
-              maxWidth: mobile ? 120 : 240,
-              minWidth: 60,
-              flex: 1,
-              height: 30,
-              padding: mobile ? "0 8px" : "0 10px",
-              color: "var(--text)",
-              fontSize: mobile ? 12 : 13,
-              fontWeight: 500,
-              background: "var(--bg-panel)",
-              border: "1px solid var(--accent)",
-              borderRadius: 3,
-              outline: "none",
-              flexShrink: 1,
-            }}
-          />
-        ) : (
-          <div
-            role="button"
-            tabIndex={selectedSession.transient ? -1 : 0}
-            aria-disabled={selectedSession.transient || undefined}
-            onClick={(event) => {
-              if (selectedSession.transient) return;
-              event.stopPropagation();
-              beginEditHeaderTitle();
-            }}
-            onKeyDown={(event) => {
-              if (selectedSession.transient) return;
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                beginEditHeaderTitle();
-              }
-            }}
-            title={selectedSession.transient
-              ? translate("title.unsaved")
-              : `${headerTitleSource || translate("chat.untitledSession")}
-${translate("chat.renameSessionTitle")}`}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              maxWidth: mobile ? 120 : 240,
-              padding: mobile ? "0 10px" : "0 14px",
-              color: "var(--text)",
-              fontSize: mobile ? 12 : 13,
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              flexShrink: 1,
-              minWidth: 0,
-              cursor: selectedSession.transient ? "default" : "text",
-              userSelect: "none",
-            }}
-          >
-            {headerTitle || translate("chat.untitledSession")}
-          </div>
-        ))}
-        {/* Magic auto-name button (icon only). */}
-        {(() => {
-          const hasMessages = Boolean(
-            selectedSession
-            && ((sessionStats?.userMessages ?? 0) > 0 || selectedSession.messageCount > 0),
-          );
-          const disabled = !selectedSession || selectedSession.transient || !hasMessages || autoNameStatus.kind === "naming";
-          const isSuccess = autoNameStatus.kind === "success";
-          const isError = autoNameStatus.kind === "error";
-          const title = !selectedSession || selectedSession.transient
-            ? translate("title.unsaved")
-            : !hasMessages
-              ? translate("title.noMessages")
-              : isError
-                ? autoNameStatus.message
-                : translate("title.generateSession");
-          return (
-            <button
-              type="button"
-              onClick={() => {
-                void handleAutoName();
-                if (mobile && isNarrowMobile) setMobileToolbarMoreOpen(true);
-              }}
-              disabled={disabled}
-              title={title}
-              aria-label={translate("title.generateSession")}
+        {/* Session title — click to rename, blur to save. While a title
+            is being generated the input collapses and a static
+            "Generating..." pill takes its place; both the input and
+            the rename trigger refuse to re-enter edit mode until the
+            request settles (success, error, or session switch). */}
+        {selectedSession && (
+          autoNameStatus.kind === "naming" ? (
+            // Generating pill — plain text, no input, no rename affordance.
+            // Rendered as a div with aria-busy so screen readers announce
+            // the pending state, and aria-disabled so it is skipped by the
+            // tab order while the request is in flight.
+            <div
+              aria-busy="true"
+              aria-disabled="true"
+              data-testid="header-title-generating"
+              title={translate("title.generating")}
               style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                width: TOP_BAR_ICON_BUTTON_SIZE,
-                height: "100%", padding: 0,
-                background: "none", border: "none",
-                color: isError ? "#dc2626" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)",
-                cursor: disabled ? "not-allowed" : "pointer",
-                opacity: disabled && autoNameStatus.kind !== "naming" ? 0.45 : 1,
-                flexShrink: 0,
-                transition: "color 0.1s, background 0.1s, opacity 0.1s",
+                display: "flex",
+                alignItems: "center",
+                alignSelf: "center",
+                gap: 6,
+                maxWidth: mobile ? 120 : 240,
+                minWidth: 60,
+                flexGrow: 1,
+                flexShrink: 1,
+                flexBasis: 0,
+                height: 30,
+                padding: mobile ? "0 10px" : "0 14px",
+                color: "var(--text-dim)",
+                fontSize: mobile ? 12 : 13,
+                fontWeight: 500,
+                fontStyle: "italic",
+                background: "var(--bg-panel)",
+                border: "none",
+                borderRadius: 3,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                userSelect: "none",
+                cursor: "default",
               }}
-              onMouseEnter={(event) => {
-                if (disabled) return;
-                if (isError || isSuccess) return;
-                event.currentTarget.style.color = "var(--text)";
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.color = isError ? "#dc2626" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)";
-              }}
-              data-mobile-toolbar-action={mobile ? "name" : undefined}
             >
-              {autoNameStatus.kind === "naming" ? (
-                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              ) : isSuccess ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                // Magic wand icon — represents "auto-generate title".
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M15 4 5 14l-1 5 5-1 10-10z" />
-                  <path d="m14 5 5 5" />
-                  <path d="M19 3v3M21 5h-3" />
-                  <path d="M5 17v3M3 19h3" />
-                  <circle cx="18" cy="3" r="0.6" fill="currentColor" />
-                  <circle cx="20" cy="5" r="0.6" fill="currentColor" />
-                  <circle cx="3" cy="17" r="0.6" fill="currentColor" />
-                  <circle cx="5" cy="19" r="0.6" fill="currentColor" />
-                </svg>
-              )}
-            </button>
-          );
-        })()}
+              <svg
+                className="animate-spin"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+                style={{ flexShrink: 0 }}
+              >
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                {translate("title.generating")}
+              </span>
+            </div>
+          ) : isEditingHeaderTitle ? (
+            // When renaming, the input + magic auto-name button live in a
+            // single pill so the wand sits flush against the input's right
+            // edge. Save fires on blur (auto), Enter (commit + blur), and
+            // Escape (cancel without saving).
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                alignSelf: "center",
+                maxWidth: mobile ? 120 : 240,
+                minWidth: 60,
+                flexGrow: 1,
+                flexShrink: 1,
+                flexBasis: 0,
+                height: 30,
+              }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <input
+                ref={headerTitleInputRef}
+                type="text"
+                value={headerDraftName}
+                aria-label={translate("chat.renameSession")}
+                maxLength={200}
+                onChange={(event) => setHeaderDraftName(event.target.value)}
+                onBlur={() => { void handleCommitHeaderRename(); }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    handleCancelHeaderRename();
+                  }
+                }}
+                onClick={(event) => event.stopPropagation()}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  padding: mobile ? "0 30px 0 8px" : "0 32px 0 10px",
+                  color: "var(--text)",
+                  fontSize: mobile ? 12 : 13,
+                  fontWeight: 500,
+                  background: "var(--bg-panel)",
+                  border: "1px solid var(--accent)",
+                  borderRadius: 3,
+                  outline: "none",
+                }}
+              />
+              {(() => {
+                const hasMessages = Boolean(
+                  selectedSession
+                  && ((sessionStats?.userMessages ?? 0) > 0 || selectedSession.messageCount > 0),
+                );
+                // While this input pill is on screen the outer ternary has
+                // already ruled out the "naming" branch, so we only need
+                // to keep the original "session must exist + be saved +
+                // have at least one message" disable conditions. The
+                // `!selectedSession` check is defensive — the surrounding
+                // `{selectedSession && (...)}` already guarantees it.
+                const disabled = !selectedSession || selectedSession.transient || !hasMessages;
+                const isSuccess = autoNameStatus.kind === "success";
+                const isError = autoNameStatus.kind === "error";
+                const title = selectedSession.transient
+                  ? translate("title.unsaved")
+                  : !hasMessages
+                    ? translate("title.noMessages")
+                    : isError
+                      ? autoNameStatus.message
+                      : translate("title.generateSession");
+                return (
+                  <button
+                    type="button"
+                    onMouseDown={(event) => {
+                      // Prevent the input from blurring before the click
+                      // fires — the click handler runs handleAutoName, and
+                      // without mousedown.preventDefault the input's blur
+                      // would commit whatever the user had typed before the
+                      // magic auto-name overwrite lands.
+                      event.preventDefault();
+                    }}
+                    onClick={() => { void handleAutoName(); }}
+                    disabled={disabled}
+                    title={title}
+                    aria-label={translate("title.generateSession")}
+                    style={{
+                      position: "absolute",
+                      right: 2,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      width: 26, height: 26, padding: 0,
+                      background: "none", border: "none",
+                      color: isError ? "#dc2626" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)",
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      opacity: disabled ? 0.45 : 1,
+                      borderRadius: 3,
+                      transition: "color 0.1s, background 0.1s, opacity 0.1s",
+                    }}
+                    onMouseEnter={(event) => {
+                      if (disabled) return;
+                      if (isError || isSuccess) return;
+                      event.currentTarget.style.color = "var(--text)";
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.color = isError ? "#dc2626" : isSuccess ? "var(--accent)" : disabled ? "var(--text-dim)" : "var(--text-muted)";
+                    }}
+                  >
+                    {isSuccess ? (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      // Magic wand icon — represents "auto-generate title".
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M15 4 5 14l-1 5 5-1 10-10z" />
+                        <path d="m14 5 5 5" />
+                        <path d="M19 3v3M21 5h-3" />
+                        <path d="M5 17v3M3 19h3" />
+                        <circle cx="18" cy="3" r="0.6" fill="currentColor" />
+                        <circle cx="20" cy="5" r="0.6" fill="currentColor" />
+                        <circle cx="3" cy="17" r="0.6" fill="currentColor" />
+                        <circle cx="5" cy="19" r="0.6" fill="currentColor" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })()}
+            </div>
+          ) : (
+            <div
+              role="button"
+              tabIndex={selectedSession.transient ? -1 : 0}
+              aria-disabled={selectedSession.transient || undefined}
+              onClick={(event) => {
+                if (selectedSession.transient) return;
+                event.stopPropagation();
+                beginEditHeaderTitle();
+              }}
+              onKeyDown={(event) => {
+                if (selectedSession.transient) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  beginEditHeaderTitle();
+                }
+              }}
+              title={selectedSession.transient
+                ? translate("title.unsaved")
+                : `${headerTitleSource || translate("chat.untitledSession")}
+${translate("chat.renameSessionTitle")}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                maxWidth: mobile ? 120 : 240,
+                padding: mobile ? "0 10px" : "0 14px",
+                color: "var(--text)",
+                fontSize: mobile ? 12 : 13,
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                flexShrink: 1,
+                minWidth: 0,
+                cursor: selectedSession.transient ? "default" : "text",
+                userSelect: "none",
+              }}
+            >
+              {headerTitle || translate("chat.untitledSession")}
+            </div>
+          )
+        )}
         {/* Dots button: opens the merged (history / system / tools) menu. */}
         <button
           ref={headerMoreBtnRef}
@@ -1487,9 +1622,9 @@ ${translate("chat.renameSessionTitle")}`}
             display: "flex", alignItems: "center", justifyContent: "center",
             width: TOP_BAR_ICON_BUTTON_SIZE,
             height: "100%", padding: 0,
-            background: headerMoreOpen ? "var(--bg-selected)" : "none",
+            background: headerMoreOpen || activeTopPanel === "branches" ? "var(--bg-selected)" : "none",
             border: "none",
-            color: headerMoreOpen ? "var(--text)" : "var(--text-muted)",
+            color: headerMoreOpen || activeTopPanel === "branches" ? "var(--text)" : "var(--text-muted)",
             cursor: !showChat && mobile ? "not-allowed" : "pointer",
             opacity: !showChat && mobile ? 0.45 : 1,
             flexShrink: 0,
@@ -1500,7 +1635,7 @@ ${translate("chat.renameSessionTitle")}`}
             event.currentTarget.style.color = "var(--text)";
           }}
           onMouseLeave={(event) => {
-            event.currentTarget.style.color = headerMoreOpen ? "var(--text)" : "var(--text-muted)";
+            event.currentTarget.style.color = (headerMoreOpen || activeTopPanel === "branches") ? "var(--text)" : "var(--text-muted)";
           }}
           data-mobile-toolbar-action={mobile ? "moreMenu" : undefined}
         >
@@ -1514,7 +1649,15 @@ ${translate("chat.renameSessionTitle")}`}
         {hasSubagentSessions && (
           <button
             type="button"
-            onClick={() => toggleTopPanel("agents", mobile)}
+            ref={agentSwitcherButtonRef}
+            onClick={() => {
+              // Outside-pointerdown already closes the panel when this button
+              // is clicked while its own panel is open; reissuing a toggle
+              // would race with that setState and reopen the panel we just
+              // closed.
+              if (activeTopPanel === "agents") return;
+              toggleTopPanel("agents", mobile);
+            }}
             title={translate("agentSwitcher.title")}
             aria-label={translate("agentSwitcher.title")}
             aria-pressed={activeTopPanel === "agents"}
@@ -1548,42 +1691,6 @@ ${translate("chat.renameSessionTitle")}`}
             </span>
           </button>
         )}
-        {sessionHasBranches && (mobile ? (
-          <button
-            type="button"
-            onClick={() => toggleTopPanel("branches", true)}
-            title={translate("i18n.branches")}
-            aria-label={translate("i18n.branches")}
-            aria-pressed={activeTopPanel === "branches"}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: TOP_BAR_ICON_BUTTON_SIZE, height: "100%", padding: 0,
-              background: activeTopPanel === "branches" ? "var(--bg-selected)" : "none",
-              border: "none",
-              color: activeTopPanel === "branches" ? "var(--text)" : "var(--text-muted)",
-              cursor: "pointer", flexShrink: 0,
-            }}
-            data-mobile-toolbar-action="branches"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: branchTree.length > 0 ? "var(--accent)" : "var(--text-dim)" }} aria-hidden="true">
-              <line x1="6" y1="3" x2="6" y2="15" />
-              <circle cx="18" cy="6" r="3" />
-              <circle cx="6" cy="18" r="3" />
-              <path d="M18 9a9 9 0 0 1-9 9" />
-            </svg>
-          </button>
-        ) : (
-          <BranchNavigator
-            tree={branchTree}
-            activeLeafId={branchActiveLeafId}
-            onLeafChange={handleBranchLeafChange}
-            inline
-            containerRef={topBarRef}
-            open={activeTopPanel === "branches"}
-            onToggle={() => toggleTopPanel("branches")}
-            hasSession
-          />
-        ))}
       </div>
     );
   };
@@ -1636,7 +1743,14 @@ ${translate("chat.renameSessionTitle")}`}
     return (
       <button
         type="button"
-        onClick={() => toggleTopPanel("session")}
+        ref={sessionStatsButtonRef}
+        onClick={() => {
+          // Outside-pointerdown already closes the panel when this button is
+          // clicked while its own panel is open; reissuing a toggle would
+          // race with that setState and reopen the panel we just closed.
+          if (activeTopPanel === "session") return;
+          toggleTopPanel("session");
+        }}
         disabled={!showChat || covered}
         tabIndex={covered ? -1 : undefined}
         title={tooltip || translate("session.title")}
@@ -1943,15 +2057,16 @@ ${translate("chat.renameSessionTitle")}`}
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
           >
-            {sidebarOpen ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            )}
+            {/*
+              Same panel icon in both states (no hamburger). The aria-label
+              / title still says "Hide sidebar" vs "Show sidebar" so the
+              action is obvious from the tooltip, but the visual stays
+              constant so the button doesn't look like two different
+              controls.
+            */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
           </button>
           {isMobile && (
             <div
@@ -2033,20 +2148,6 @@ ${translate("chat.renameSessionTitle")}`}
             </>
           )}
           {!isMobile && renderMainFileToggle(false)}
-          {isMobile && sessionHasBranches && (
-            <BranchNavigator
-              tree={branchTree}
-              activeLeafId={branchActiveLeafId}
-              onLeafChange={handleBranchLeafChange}
-              inline
-              compact
-              containerRef={topBarRef}
-              open={activeTopPanel === "branches"}
-              onToggle={() => toggleTopPanel("branches")}
-              hasSession={showChat}
-              hideInlineButton
-            />
-          )}
           {/* Top panel dropdown — shared, only one active at a time */}
           {activeTopPanel && topPanelPos && (
             <div
@@ -2068,6 +2169,18 @@ ${translate("chat.renameSessionTitle")}`}
                   selectedSessionId={selectedSession.id}
                   runningSessionIds={runningSessionIds}
                   onSelectSession={handleSelectSession}
+                />
+              )}
+              {activeTopPanel === "branches" && (
+                <BranchNavigator
+                  tree={branchTree}
+                  activeLeafId={branchActiveLeafId}
+                  onLeafChange={handleBranchLeafChange}
+                  inline
+                  containerRef={topBarRef}
+                  open
+                  hasSession={showChat}
+                  hideInlineButton
                 />
               )}
               {activeTopPanel === "system" && (
@@ -2318,6 +2431,41 @@ ${translate("chat.renameSessionTitle")}`}
                 boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
               }}
             >
+              {sessionHasBranches && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setHeaderMoreOpen(false);
+                    // Outside-pointerdown already closes the panel when this
+                    // menu item is clicked while its own panel is open;
+                    // reissuing a toggle would race with that setState and
+                    // reopen the panel we just closed.
+                    if (activeTopPanel === "branches") return;
+                    toggleTopPanel("branches", isMobile);
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    width: "100%", height: 34, padding: "0 10px",
+                    border: "none", borderRadius: 4,
+                    background: activeTopPanel === "branches" ? "var(--bg-selected)" : "transparent",
+                    color: activeTopPanel === "branches" ? "var(--text)" : "var(--text)",
+                    cursor: "pointer",
+                    textAlign: "left", fontSize: 12,
+                    transition: "background 0.1s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = activeTopPanel === "branches" ? "var(--bg-selected)" : "transparent"; }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, color: branchTree.length > 0 ? "var(--accent)" : "var(--text-dim)" }}>
+                    <line x1="6" y1="3" x2="6" y2="15" />
+                    <circle cx="18" cy="6" r="3" />
+                    <circle cx="6" cy="18" r="3" />
+                    <path d="M18 9a9 9 0 0 1-9 9" />
+                  </svg>
+                  {translate("i18n.sessionBranches")}
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
