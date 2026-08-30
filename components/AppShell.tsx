@@ -1551,15 +1551,20 @@ export function AppShell() {
                       </svg>
                     ) : (
                       // Magic wand icon — represents "auto-generate title".
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M15 4 5 14l-1 5 5-1 10-10z" />
-                        <path d="m14 5 5 5" />
-                        <path d="M19 3v3M21 5h-3" />
-                        <path d="M5 17v3M3 19h3" />
-                        <circle cx="18" cy="3" r="0.6" fill="currentColor" />
-                        <circle cx="20" cy="5" r="0.6" fill="currentColor" />
-                        <circle cx="3" cy="17" r="0.6" fill="currentColor" />
-                        <circle cx="5" cy="19" r="0.6" fill="currentColor" />
+                      // Lucide-style "wand-sparkles": a diagonal wand body with
+                      // four small sparkles clustered around it. Sized at 14
+                      // so the sparkles stay readable inside the 26×26 button.
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="m15 4 5 5" />
+                        <path d="m11 9-7 7 3 3 7-7z" />
+                        <path d="M19 3v3" />
+                        <path d="M21 5h-3" />
+                        <path d="M5 17v3" />
+                        <path d="M3 19h3" />
+                        <circle cx="18" cy="3" r="0.7" fill="currentColor" stroke="none" />
+                        <circle cx="20" cy="5" r="0.7" fill="currentColor" stroke="none" />
+                        <circle cx="3" cy="17" r="0.7" fill="currentColor" stroke="none" />
+                        <circle cx="5" cy="19" r="0.7" fill="currentColor" stroke="none" />
                       </svg>
                     )}
                   </button>
