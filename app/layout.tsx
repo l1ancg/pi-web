@@ -1,12 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import "./settings.css";
 
-const notoSansMono = Noto_Sans_Mono({
-  subsets: ["latin", "cyrillic"],
+// Self-hosted Noto Sans Mono (Latin + Cyrillic, weight 400) — avoids the
+// Google Fonts download that fails in offline / proxied environments.
+const notoSansMono = localFont({
+  src: [
+    {
+      path: "../public/fonts/noto-sans-mono/noto-sans-mono-latin-400-normal.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/noto-sans-mono/noto-sans-mono-cyrillic-400-normal.woff2",
+      weight: "400",
+      style: "normal",
+    },
+  ],
   variable: "--font-noto-mono",
   display: "swap",
 });

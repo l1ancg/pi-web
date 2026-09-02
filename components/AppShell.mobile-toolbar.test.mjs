@@ -19,9 +19,12 @@ test("uses a compact narrow-mobile toolbar with a floating action layer", () => 
     /data-mobile-toolbar-actions="true"[\s\S]*?position: "absolute"[\s\S]*?right: 0,[\s\S]*?left: TOP_BAR_ICON_BUTTON_SIZE/,
   );
 
-  for (const action of ["name", "agents", "branches", "moreMenu"]) {
+  for (const action of ["name", "agents", "moreMenu"]) {
     assert.match(source, new RegExp(`data-mobile-toolbar-action=(?:\\{mobile \\? )?"${action}"`));
   }
+  // Branches are no longer a top-bar toolbar control; the entry is reached
+  // through the header "more" menu.
+  assert.doesNotMatch(source, /data-mobile-toolbar-action=(?:\{mobile \? )?"branches"/);
 });
 
 test("only renders the Agents switcher when the active session family has subagents", () => {
@@ -41,9 +44,13 @@ test("keeps the Agents panel open while switching sessions and positions it at t
 
 test("only renders branch toolbar controls for sessions with branches", () => {
   assert.match(source, /const sessionHasBranches = hasSessionBranches\(branchTree\)/);
-  assert.match(source, /\{sessionHasBranches && \(mobile \? \(/);
-  assert.match(source, /\{isMobile && sessionHasBranches && \(/);
+  // The branches entry now lives inside the header "more" menu and is only
+  // rendered when the current session actually has branches.
+  assert.match(source, /\{sessionHasBranches && \([\s\S]*?toggleTopPanel\("branches", isMobile\)/);
   assert.match(source, /panel === "branches" \? null : panel/);
+  // The header no longer hosts a dedicated branches button.
+  assert.doesNotMatch(source, /\{sessionHasBranches && \(mobile \? \([\s\S]*?data-mobile-toolbar-action="branches"/);
+  assert.doesNotMatch(source, /\{isMobile && sessionHasBranches && \(\s*<BranchNavigator/);
 });
 
 test("keeps covered statistics and file controls out of interaction and focus", () => {
@@ -70,7 +77,9 @@ test("keeps the mobile action layer open after using an expanded action", () => 
     assert.match(handler, /setMobileToolbarMoreOpen\(true\)/);
   }
 
-  assert.match(source, /toggleTopPanel\("branches", true\)/);
+  // Branches now enter the more menu, so it should keep the mobile action
+  // layer open by passing the isMobile flag through.
+  assert.match(source, /toggleTopPanel\("branches", isMobile\)/);
   assert.match(source, /handleSystemInfoToggle\("system", (?:mobile|isMobile)\)/);
   assert.match(source, /handleSystemInfoToggle\("tools", (?:mobile|isMobile)\)/);
   assert.match(source, /onClick=\{\(\) => toggleTopPanel\("session"\)\}/);

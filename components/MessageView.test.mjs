@@ -202,3 +202,83 @@ test("renders custom-message images as buttons that open a larger preview", () =
   assert.match(html, /<button[^>]+aria-label="Preview image"[^>]*>/);
   assert.match(html, /<img[^>]+src="data:image\/png;base64,YWJj"/);
 });
+
+const LONG_COMPACTION_SUMMARY = [
+  "## Goal",
+  "Refactor the auth flow to use refresh tokens instead of long-lived sessions.",
+  "Steps:",
+  "- Replace session cookies with `__Host-refresh` cookie",
+  "- Add a server-side `/auth/refresh` handler that issues 15-minute access tokens",
+  "- Migrate the login page to set the new cookie and drop the old one",
+  "## Files of interest",
+  "- app/api/auth/login/route.ts",
+  "- app/api/auth/refresh/route.ts",
+  "- lib/session.ts",
+  "<read-files>",
+  "app/api/auth/login/route.ts",
+  "lib/session.ts",
+  "</read-files>",
+  "<modified-files>",
+  "app/api/auth/refresh/route.ts",
+  "lib/session.ts",
+  "</modified-files>",
+].join("\n");
+
+function renderCompaction(summary, custom = {}) {
+  return renderMessage({
+    role: "custom",
+    customType: "compaction",
+    display: true,
+    content: summary,
+    timestamp: Date.parse("2026-05-07T12:34:56.000Z"),
+    ...custom,
+  });
+}
+
+test("renders compaction card collapsed by default and shows only the header row", () => {
+  const html = renderCompaction(LONG_COMPACTION_SUMMARY);
+
+  // Header is the toggle and reports collapsed.
+  assert.match(html, /<button[^>]+aria-expanded="false"[^>]*>/);
+  assert.match(html, /aria-label="Show compaction details"/);
+
+  // Title text and badge are visible in the collapsed state.
+  assert.match(html, />compaction</);
+  assert.match(html, />Conversation compacted</);
+
+  // Char + line counts help users gauge size without opening the card.
+  assert.match(html, />\d+ · \d+ lines?</);
+
+  // Summary body, preview, description and file metadata are hidden until expanded.
+  assert.doesNotMatch(html, /Refactor the auth flow to use refresh tokens/);
+  assert.doesNotMatch(html, /The conversation history before this point was compacted/);
+  assert.doesNotMatch(html, /File context/);
+  assert.doesNotMatch(html, /Read files/);
+  assert.doesNotMatch(html, /Modified files/);
+});
+
+test("keeps the entire compaction card collapsed even for short summaries", () => {
+  const html = renderCompaction("Short recap: shipped the fix.");
+
+  assert.match(html, /<button[^>]+aria-expanded="false"[^>]*>/);
+  // Short summary body does not leak into the collapsed view either.
+  assert.doesNotMatch(html, /Short recap: shipped the fix\./);
+  assert.doesNotMatch(html, /The conversation history before this point was compacted/);
+});
+
+test("omits the file-metadata details when the compaction has no file sections", () => {
+  const html = renderCompaction("Plain summary without any file lists.");
+
+  assert.match(html, /<button[^>]+aria-expanded="false"[^>]*>/);
+  assert.doesNotMatch(html, /compaction-file-details/);
+  assert.doesNotMatch(html, /File context/);
+});
+
+test("renders no preview body when the compaction summary is empty", () => {
+  const html = renderCompaction("\n\n   \n");
+
+  assert.match(html, /<button[^>]+aria-expanded="false"[^>]*>/);
+  assert.match(html, />Conversation compacted</);
+  // The summary body remains hidden when collapsed.
+  assert.doesNotMatch(html, /Refactor the auth flow/);
+});

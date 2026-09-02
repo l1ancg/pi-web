@@ -24,9 +24,9 @@
   --bg-hover: #eeeeee;
   --bg-selected: #e8e8e8;
   --border: #e0e0e0;
-  --text: #1a1a1a;
-  --text-muted: #6b7280;
-  --text-dim: #9ca3af;
+  --text: #111111;
+  --text-muted: #5b6470;
+  --text-dim: #8a93a0;
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --user-bg: #eff6ff;
@@ -36,20 +36,20 @@
 }
 
 html.dark {
-  --bg: #1a1a1a;
-  --bg-panel: #242424;
-  --bg-hover: #2e2e2e;
-  --bg-selected: #383838;
-  --border: #3a3a3a;
-  --text: #e8e8e8;
-  --text-muted: #9ca3af;
-  --text-dim: #6b7280;
-  --accent: #60a5fa;
-  --accent-hover: #93c5fd;
-  --user-bg: #1e293b;
-  --assistant-bg: #1a1a1a;
-  --tool-bg: #1f2937;
-  --bg-subtle: rgba(255,255,255,0.04);
+  --bg: #161616;
+  --bg-panel: #1f1f1f;
+  --bg-hover: #2a2a2a;
+  --bg-selected: #333333;
+  --border: #2e2e2e;
+  --text: #f3f3f3;
+  --text-muted: #a1a1aa;
+  --text-dim: #6b6b75;
+  --accent: #7aa2f7;
+  --accent-hover: #a4c0ff;
+  --user-bg: #1f2632;
+  --assistant-bg: #161616;
+  --tool-bg: #1c1c1c;
+  --bg-subtle: rgba(255,255,255,0.035);
 }
 
 /* WebKit reports dvh/innerHeight without the status-bar strip for installed
@@ -117,7 +117,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   overscroll-behavior: none;
 }
 
@@ -175,7 +175,7 @@ body {
   overflow: hidden;
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -218,7 +218,7 @@ body {
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   text-align: left;
 }
 
@@ -315,7 +315,7 @@ button.extension-widget-trigger:focus-visible {
   padding: 3px 12px 8px;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -339,7 +339,7 @@ button.extension-widget-trigger:focus-visible {
   min-width: 0;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -361,9 +361,11 @@ pre, code {
   min-width: 0;
   max-width: 100%;
   overflow-x: hidden;
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 16.5px;
+  line-height: 1.65;
   color: var(--text);
+  font-weight: 420;
+  letter-spacing: -0.003em;
   word-break: break-word;
 }
 .markdown-body p { margin: 0 0 8px; }
@@ -480,7 +482,7 @@ pre, code {
   border-collapse: separate;
   border-spacing: 0;
   min-width: 100%;
-  font-size: 13px;
+  font-size: 15px;
 }
 .markdown-body th, .markdown-body td {
   border: 0;
@@ -570,7 +572,7 @@ pre, code {
   padding-top: 8px;
   border-top: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 .compaction-file-details summary {
   cursor: pointer;
@@ -583,7 +585,7 @@ pre, code {
 .compaction-file-title {
   margin-bottom: 4px;
   color: var(--text);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
 }
 .compaction-file-list {
@@ -595,7 +597,7 @@ pre, code {
   border-radius: 6px;
   background: var(--bg-panel);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.45;
   list-style: none;
 }
@@ -623,7 +625,7 @@ pre, code {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: 13px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -647,7 +649,7 @@ pre, code {
   color: var(--text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.25;
 }
 .markdown-code-action:hover:not(:disabled) {
@@ -679,7 +681,7 @@ pre, code {
 .mermaid-block-error {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .mermaid-preview-button {
@@ -805,7 +807,7 @@ pre, code {
   overflow: hidden;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -870,7 +872,7 @@ pre, code {
   height: 22px;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 22px;
   text-align: center;
   user-select: none;
@@ -904,7 +906,7 @@ pre, code {
   }
 
   .mermaid-zoom-title {
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .mermaid-zoom-viewport {
@@ -1059,7 +1061,7 @@ pre, code {
   padding: 12px 16px;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 15px;
   margin: 12px 0;
 }
 .markdown-file-preview code {
@@ -1095,7 +1097,7 @@ pre, code {
   margin-top: 8px;
 }
 .markdown-frontmatter-tag {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--text-muted);
   background: var(--bg-subtle);
@@ -1108,7 +1110,7 @@ pre, code {
   grid-template-columns: auto 1fr;
   gap: 5px 14px;
   margin: 10px 0 0;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.55;
 }
 .markdown-frontmatter-row {
@@ -1439,10 +1441,16 @@ span.token.table {
 }
 
 /* Sidebar rows: hover-reveal action buttons.
-   Action buttons overlay the right edge of the row — the row's title text
-   always claims the full available width, so we never reserve empty space
-   for buttons that are not visible. A left-to-right gradient on the actions
-   container fades the underlying text into the buttons on hover. */
+   Action buttons overlay the right edge of the row. The actions container
+   is absolutely positioned, default state hidden, and does not reserve any
+   space in the row. Only row hover reveals the actions; the active/selected
+   state intentionally does not, so the row stays calm until the user
+   deliberately points at it. Each button paints its own per-icon "shield"
+   pseudo-element — a left-to-right gradient (transparent → row hover
+   background) — so the icon sits on a clean background block instead of
+   overlapping the title's ellipsis area. Because the shield is per-button,
+   rows with two buttons get two shields and rows with one button get one,
+   automatically. */
 .piweb-sidebar-row {
   position: relative;
   overflow: hidden;
@@ -1458,6 +1466,24 @@ span.token.table {
   background: var(--bg-selected);
 }
 
+.piweb-sidebar-row--no-hover:hover {
+  background: transparent;
+}
+
+.piweb-sidebar-row--no-hover .piweb-sidebar-actions > button::before {
+  display: none;
+}
+
+.piweb-sidebar-toggle {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.piweb-sidebar-row:hover .piweb-sidebar-toggle,
+.piweb-sidebar-toggle:focus-visible {
+  opacity: 1;
+}
+
 .piweb-sidebar-actions {
   position: absolute;
   right: 4px;
@@ -1465,16 +1491,68 @@ span.token.table {
   bottom: 0;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s ease;
+  transition: opacity 0.14s ease;
   z-index: 1;
 }
 
 .piweb-sidebar-row:hover .piweb-sidebar-actions {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Per-button shield: a pseudo-element that sits behind each action button
+   and fades the row background out under the icon. The 22px solid block
+   gives the icon a clean background; the 30px fade on the left side keeps
+   the gradient from looking like a hard rectangle cut into the title. */
+.piweb-sidebar-actions > button {
+  position: relative;
+}
+
+.piweb-sidebar-actions > button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 52px;
+  background: linear-gradient(to right, transparent, var(--bg-selected) 60%);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.piweb-sidebar-row:hover .piweb-sidebar-actions > button::before {
+  opacity: 1;
+}
+
+/* Floating "jump to latest message" pill that appears above the chat input
+ * when the message list is scrolled away from the tail. */
+.piweb-jump-to-bottom {
+  animation: jump-to-bottom-in 0.16s ease-out;
+}
+
+.piweb-jump-to-bottom:hover {
+  background: var(--bg-hover) !important;
+  color: var(--text) !important;
+}
+
+.piweb-jump-to-bottom:active {
+  transform: translateX(-50%) scale(0.92);
+}
+
+@keyframes jump-to-bottom-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 /* @pierre/trees hardcodes `margin-block: 1px` on the search input inside its

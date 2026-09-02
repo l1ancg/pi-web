@@ -585,7 +585,19 @@ function DiffBody({
     );
   }
   return (
-    <div style={{ height: "100%", minHeight: 0, padding: "8px 12px" }}>
+    <div
+      style={{
+        height: "100%",
+        minHeight: 0,
+        // Our wrapper owns the scroll. The pierre <diffs-container> is
+        // `display: block` with no built-in height, so it grows to the
+        // full diff height; we clip it here and provide the scrollbar.
+        // `overflow: auto` is required (not `hidden`) for wheel/trackpad
+        // and a visible scrollbar.
+        overflow: "auto",
+        padding: "8px 12px",
+      }}
+    >
       <PatchDiff patch={diff.patch} options={options} />
     </div>
   );

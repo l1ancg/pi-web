@@ -341,6 +341,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const lastUserMsgRef = useRef<HTMLDivElement | null>(null);
   const pendingScrollToUserRef = useRef(false);
   const isNearBottomRef = useRef(true);
+  // Mirror of isNearBottomRef as React state so the ChatWindow can show a
+  // "jump to bottom" pill when the user has scrolled away from the tail.
+  // React deduplicates Object.is-equal setState, so this only re-renders
+  // when the value actually flips.
+  const [showJumpToBottom, setShowJumpToBottom] = useState(true);
   const previousScrollTopRef = useRef(0);
   const liveFollowFrameRef = useRef<number | null>(null);
   const executeBashRef = useRef<(command: string, excludeFromContext: boolean) => Promise<void> | undefined>(undefined);
@@ -392,6 +397,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const container = scrollContainerRef.current;
     messagesEndRef.current?.scrollIntoView({ behavior });
     if (container) previousScrollTopRef.current = container.scrollTop;
+    // Programmatic scroll lands at the tail; hide the jump-to-bottom pill.
+    setShowJumpToBottom(true);
   }, []);
 
   const currentModel = currentModelOverride ?? data?.context.model ?? pendingModel ?? null;
@@ -1832,6 +1839,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       );
       isNearBottomRef.current = isAttached;
       previousScrollTopRef.current = scrollTop;
+      setShowJumpToBottom(isAttached);
       if (!wasAttached && isAttached && isAgentRunning) {
         scrollToBottom("auto");
       } else if (!isAttached && liveFollowFrameRef.current !== null) {
@@ -1868,6 +1876,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
     if (session) {
       sessionIdRef.current = session.id;
+      // Fresh session — viewport starts at the tail.
+      setShowJumpToBottom(true);
       loadSession(session.id, true, true).then((agentState) => {
         if (agentState?.running) {
           loadTools(session.id);
@@ -2061,6 +2071,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     setNoticePaused: setPausedNoticeId,
     handleToolPresetChange, handleThinkingLevelChange, loadTools, loadSlashCommands, setActiveLeafId, setData, setMessages, loadContext,
     scrollToBottom, scrollUserMsgToTop,
+    showJumpToBottom,
     dispatch, setAgentRunning, setForkingEntryId,
     bashRunning, pendingBash,
     // Subscriptions

@@ -1359,9 +1359,9 @@ export function AppShell() {
   };
 
   // Header title for the current session — used by the toolbar. Falls back to
-  // the first user message preview, then the session id. Truncated to 15
+  // the first user message preview, then the session id. Truncated to 30
   // characters with an ellipsis when the rendered value overflows.
-  const HEADER_TITLE_MAX = 15;
+  const HEADER_TITLE_MAX = 30;
   const headerTitleSource = useMemo(() => {
     if (!selectedSession) return "";
     if (selectedSession.name) return selectedSession.name;
@@ -1398,7 +1398,7 @@ export function AppShell() {
                 alignItems: "center",
                 alignSelf: "center",
                 gap: 6,
-                maxWidth: mobile ? 120 : 240,
+                maxWidth: mobile ? 180 : 400,
                 minWidth: 60,
                 flexGrow: 1,
                 flexShrink: 1,
@@ -1406,7 +1406,7 @@ export function AppShell() {
                 height: 30,
                 padding: mobile ? "0 10px" : "0 14px",
                 color: "var(--text-dim)",
-                fontSize: mobile ? 12 : 13,
+                fontSize: mobile ? 13 : 14,
                 fontWeight: 500,
                 fontStyle: "italic",
                 background: "var(--bg-panel)",
@@ -1446,7 +1446,7 @@ export function AppShell() {
                 display: "flex",
                 alignItems: "center",
                 alignSelf: "center",
-                maxWidth: mobile ? 120 : 240,
+                maxWidth: mobile ? 180 : 400,
                 minWidth: 60,
                 flexGrow: 1,
                 flexShrink: 1,
@@ -1478,7 +1478,7 @@ export function AppShell() {
                   height: "100%",
                   padding: mobile ? "0 30px 0 8px" : "0 32px 0 10px",
                   color: "var(--text)",
-                  fontSize: mobile ? 12 : 13,
+                  fontSize: mobile ? 13 : 14,
                   fontWeight: 500,
                   background: "var(--bg-panel)",
                   border: "1px solid var(--accent)",
@@ -1595,10 +1595,10 @@ ${translate("chat.renameSessionTitle")}`}
               style={{
                 display: "flex",
                 alignItems: "center",
-                maxWidth: mobile ? 120 : 240,
+                maxWidth: mobile ? 180 : 400,
                 padding: mobile ? "0 10px" : "0 14px",
                 color: "var(--text)",
-                fontSize: mobile ? 12 : 13,
+                fontSize: mobile ? 13 : 14,
                 fontWeight: 500,
                 whiteSpace: "nowrap",
                 overflow: "hidden",

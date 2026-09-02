@@ -34,9 +34,9 @@ const EXPANDED_PROJECTS_STORAGE_KEY = "pi-web:expanded-projects";
 const RECENT_EXPANDED_STORAGE_KEY = "pi-web:recent-expanded";
 const RUNNING_SESSIONS_POLL_MS = 2500;
 
-const SECTION_HEADER_HEIGHT = 28;
-const ROW_HEIGHT = 30;
-const SUBROW_INDENT = 22;
+const SECTION_HEADER_HEIGHT = 34;
+const ROW_HEIGHT = 38;
+const SUBROW_INDENT = 44;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Small helpers
@@ -133,110 +133,24 @@ function getFileName(path: string): string {
 
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Scramble animation for the title (Pi Web <-> version string)
+// Sidebar title
 // ──────────────────────────────────────────────────────────────────────────────
 
-const SCRAMBLE_CHARS =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-
-function useScramble(target: string, running: boolean): string {
-  const [display, setDisplay] = useState(target);
-  const frameRef = useRef<number | null>(null);
-  const iterRef = useRef(0);
-
-  useEffect(() => {
-    if (!running) {
-      setDisplay(target);
-      return;
-    }
-    iterRef.current = 0;
-    const totalFrames = target.length * 4;
-
-    const step = () => {
-      iterRef.current += 1;
-      const progress = iterRef.current / totalFrames;
-      const resolved = Math.floor(progress * target.length);
-
-      setDisplay(
-        target
-          .split("")
-          .map((char, i) => {
-            if (char === " ") return " ";
-            if (i < resolved) return char;
-            return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
-          })
-          .join(""),
-      );
-
-      if (iterRef.current < totalFrames) {
-        frameRef.current = requestAnimationFrame(step);
-      } else {
-        setDisplay(target);
-      }
-    };
-
-    frameRef.current = requestAnimationFrame(step);
-    return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    };
-  }, [target, running]);
-
-  return display;
-}
-
 function PiWebTitle() {
-  const [showVersion, setShowVersion] = useState(false);
-  const [scrambling, setScrambling] = useState(false);
-  const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const target = showVersion
-    ? `${process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"}p${process.env.NEXT_PUBLIC_PI_VERSION ?? "0.0.0"}`
-    : "Pi Web";
-  const display = useScramble(target, scrambling);
-
-  const triggerScramble = useCallback((toVersion: boolean) => {
-    setShowVersion(toVersion);
-    setScrambling(true);
-    setTimeout(() => setScrambling(false), (toVersion ? 6 : 8) * 4 * (1000 / 60) + 100);
-  }, []);
-
-  const handleClick = useCallback(() => {
-    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
-
-    const next = !showVersion;
-    triggerScramble(next);
-
-    if (next) {
-      revertTimerRef.current = setTimeout(() => triggerScramble(false), 3000);
-    }
-  }, [showVersion, triggerScramble]);
-
-  useEffect(
-    () => () => {
-      if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
-    },
-    [],
-  );
-
   return (
-    <button
-      onClick={handleClick}
+    <span
       style={{
-        background: "none",
-        border: "none",
-        padding: 0,
-        cursor: "default",
         fontWeight: 700,
-        fontSize: 13,
+        fontSize: 16,
         letterSpacing: "-0.01em",
-        color: showVersion ? "var(--accent)" : "var(--text)",
+        color: "var(--text)",
         fontFamily: "var(--font-mono)",
         minWidth: "6ch",
         textAlign: "left",
       }}
     >
-      {display}
-    </button>
+      Pi Web
+    </span>
   );
 }
 
@@ -320,7 +234,7 @@ function ActivityCounts({
         flexShrink: 0,
         marginLeft: 4,
         fontFamily: "var(--font-mono)",
-        fontSize: 10,
+        fontSize: 12,
       }}
     >
       {activity.running > 0 && (
@@ -466,14 +380,14 @@ function ConfirmOverlay({
           gap: 10,
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>
           {target.kind === "project"
             ? t("sidebar.confirmDeleteProject")
             : t("sidebar.confirmDeleteSession", { title: target.title })}
         </div>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 13,
             color: "var(--text-muted)",
             lineHeight: 1.45,
             overflowWrap: "anywhere",
@@ -498,7 +412,7 @@ function ConfirmOverlay({
               border: "1px solid var(--border)",
               borderRadius: 6,
               color: "var(--text-muted)",
-              fontSize: 12,
+              fontSize: 14,
               cursor: busy ? "default" : "pointer",
             }}
           >
@@ -514,7 +428,7 @@ function ConfirmOverlay({
               border: "1px solid #ef4444",
               borderRadius: 6,
               color: "#fff",
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 600,
               cursor: busy ? "default" : "pointer",
               opacity: busy ? 0.6 : 1,
@@ -585,24 +499,8 @@ function SessionRow({
         color: isSelected ? "var(--text)" : "var(--text)",
       }}
     >
-      {depth > 0 ? (
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ flexShrink: 0 }}
-          aria-hidden="true"
-        >
-          <rect x="5" y="7" width="14" height="11" rx="2" />
-          <path d="M9 11h.01M15 11h.01M9 15h6M12 7V4M10 4h4" />
-        </svg>
-      ) : (
-        <span style={{ width: 10, flexShrink: 0 }} />
+      {depth === 0 && (
+        <span style={{ width: 10, flexShrink: 0 }} aria-hidden="true" />
       )}
 
       {isRunning ? (
@@ -618,7 +516,7 @@ function SessionRow({
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
-          fontSize: 12,
+          fontSize: 15,
           fontWeight: isSelected ? 500 : 400,
         }}
       >
@@ -628,7 +526,7 @@ function SessionRow({
       <span
         style={{
           flexShrink: 0,
-          fontSize: 10,
+          fontSize: 13,
           color: "var(--text-dim)",
           fontFamily: "var(--font-mono)",
           display: "inline-flex",
@@ -645,6 +543,7 @@ function SessionRow({
           onClick={onAskDelete}
           title={t("sidebar.deleteWithShiftClick")}
           ariaLabel={t("sidebar.delete")}
+          color="var(--text)"
           hoverColor="#ef4444"
           disabled={pendingDeleteKind !== null}
         >
@@ -729,6 +628,7 @@ function ProjectItem({
           aria-expanded={expanded}
           aria-label={expanded ? t("sidebar.collapse") : t("sidebar.expand")}
           title={expanded ? t("sidebar.collapse") : t("sidebar.expand")}
+          className="piweb-sidebar-toggle"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -751,18 +651,18 @@ function ProjectItem({
         </button>
 
         <svg
-          width="13"
-          height="13"
-          viewBox="0 0 16 16"
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
           fill="none"
           stroke={isActive ? "var(--accent)" : "var(--text-muted)"}
-          strokeWidth="1.4"
+          strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{ flexShrink: 0, pointerEvents: "none" }}
           aria-hidden="true"
         >
-          <path d="M1.5 4.5A1 1 0 0 1 2.5 3.5h3l1 1.2h6A1 1 0 0 1 13.5 5.7v6.3a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1V4.5Z" />
+          <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
         </svg>
 
         <div
@@ -793,7 +693,7 @@ function ProjectItem({
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              fontSize: 12,
+              fontSize: 15,
               fontWeight: isActive ? 600 : 500,
             }}
           >
@@ -805,7 +705,7 @@ function ProjectItem({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                fontSize: 10,
+                fontSize: 13,
                 color: "var(--text-dim)",
                 fontFamily: "var(--font-mono)",
                 minWidth: 0,
@@ -830,6 +730,7 @@ function ProjectItem({
             onClick={() => onNewSession(project.root)}
             title={t("sidebar.newSessionInFolder", { path: project.root })}
             ariaLabel={t("sidebar.newSessionInFolder", { path: project.root })}
+            color="var(--text)"
             hoverColor="var(--accent)"
             disabled={pendingDeleteKind !== null}
           >
@@ -842,6 +743,7 @@ function ProjectItem({
             onClick={onAskDeleteProject}
             title={t("sidebar.delete")}
             ariaLabel={t("sidebar.delete")}
+            color="var(--text)"
             hoverColor="#ef4444"
             disabled={pendingDeleteKind !== null || !hasChildren}
           >
@@ -866,7 +768,7 @@ function ProjectItem({
               <div key={family.root.id}>
                 <SessionRow
                   session={displaySession}
-                  depth={0}
+                  depth={1}
                   isSelected={
                     selectedSessionId === family.root.id ||
                     family.subagents.some((s) => s.id === selectedSessionId)
@@ -887,7 +789,7 @@ function ProjectItem({
                   <SessionRow
                     key={sub.id}
                     session={sub}
-                    depth={1}
+                    depth={2}
                     isSelected={selectedSessionId === sub.id}
                     isRunning={runningSessionIds.has(sub.id)}
                     isUnread={unreadSessionIds.has(sub.id)}
@@ -925,7 +827,7 @@ function SectionHeader({
   const { t } = useI18n();
   return (
     <div
-      className="piweb-sidebar-row"
+      className="piweb-sidebar-row piweb-sidebar-row--no-hover"
       style={{
         height: SECTION_HEADER_HEIGHT,
         display: "flex",
@@ -941,6 +843,7 @@ function SectionHeader({
         onClick={onToggle}
         aria-expanded={expanded}
         aria-label={expanded ? t("sidebar.collapse") : t("sidebar.expand")}
+        className="piweb-sidebar-toggle"
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -973,9 +876,9 @@ function SectionHeader({
           }
         }}
         style={{
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: 600,
-          letterSpacing: "0.06em",
+          letterSpacing: "0.05em",
           textTransform: "uppercase",
           color: "var(--text-dim)",
           flex: 1,
@@ -998,7 +901,8 @@ function SectionHeader({
             onClick={onAdd}
             title={t("sidebar.addProject")}
             ariaLabel={t("sidebar.addProject")}
-            hoverColor="var(--accent)"
+            color="var(--text-muted)"
+            hoverColor="var(--text)"
             disabled={pendingDelete}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1700,17 +1604,17 @@ export function SessionSidebar({
         {projectsExpanded && (
           <div>
             {loading && (
-              <div style={{ padding: "6px 14px", color: "var(--text-muted)", fontSize: 12 }}>
+              <div style={{ padding: "6px 14px", color: "var(--text-muted)", fontSize: 14 }}>
                 {t("sidebar.loading")}
               </div>
             )}
             {error && (
-              <div style={{ padding: "6px 14px", color: "#f87171", fontSize: 12 }}>
+              <div style={{ padding: "6px 14px", color: "#f87171", fontSize: 14 }}>
                 {error}
               </div>
             )}
             {!loading && !error && projects.length === 0 && (
-              <div style={{ padding: "6px 14px", color: "var(--text-dim)", fontSize: 11 }}>
+              <div style={{ padding: "6px 14px", color: "var(--text-dim)", fontSize: 13 }}>
                 {t("sidebar.emptyProjects")}
               </div>
             )}
